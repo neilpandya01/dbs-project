@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { greatCircleLine, linePoint, type LngLat } from "@/lib/geo";
-import { AIRPORTS } from "@/lib/mock";
+import { AIRPORTS } from "@/lib/core";
 import { AIRPORT_COLORS } from "@/lib/mapColors";
 
 export type MapRoute = { id: string; from: string; to: string; color?: string; highlight?: boolean; progress?: number };
@@ -113,10 +113,29 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
       const node = document.createElement("button");
       node.className = "plane-marker" + (p.id === selectedPlane ? " selected" : "");
       node.setAttribute("aria-label", `${p.name} in flight, heading ${Math.round(heading)} degrees`);
-      node.innerHTML =
-        `<svg class="plane-icon" viewBox="0 0 24 24" style="transform:rotate(${heading}deg);color:${p.color}" aria-hidden="true">` +
-        `<path d="${PLANE_PATH}" fill="currentColor" stroke="#fff" stroke-width="1.4" stroke-linejoin="round" paint-order="stroke"/></svg>` +
-        `<span class="plane-tag" style="--c:${p.color}">${p.label}</span>`;
+      // Built with DOM calls and textContent, never innerHTML: the label is a person's display name,
+      // which another user controls, so it must never be parsed as HTML.
+      const color = /^#[0-9a-f]{3,8}$/i.test(p.color) ? p.color : "#1f7ff0";
+      const NS = "http://www.w3.org/2000/svg";
+      const svg = document.createElementNS(NS, "svg");
+      svg.setAttribute("class", "plane-icon");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.setAttribute("aria-hidden", "true");
+      svg.style.transform = `rotate(${heading}deg)`;
+      svg.style.color = color;
+      const path = document.createElementNS(NS, "path");
+      path.setAttribute("d", PLANE_PATH);
+      path.setAttribute("fill", "currentColor");
+      path.setAttribute("stroke", "#fff");
+      path.setAttribute("stroke-width", "1.4");
+      path.setAttribute("stroke-linejoin", "round");
+      path.setAttribute("paint-order", "stroke");
+      svg.appendChild(path);
+      const tag = document.createElement("span");
+      tag.className = "plane-tag";
+      tag.style.setProperty("--c", color);
+      tag.textContent = p.label;
+      node.append(svg, tag);
       node.addEventListener("click", (e) => {
         e.stopPropagation();
         onSelectPlane?.(p.id);

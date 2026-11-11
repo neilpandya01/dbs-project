@@ -1,5 +1,4 @@
-import { CARRIERS, MY_FLIGHTS, UPCOMING_FLIGHTS } from "./mock";
-
+import type { Flight } from "./core";
 
 /** "ua1234" / "UA 1234" -> "UA 1234". Leaves anything else as typed (uppercased). */
 export function formatFlightNumber(raw: string) {
@@ -8,15 +7,13 @@ export function formatFlightNumber(raw: string) {
   return m ? `${m[1]} ${m[2]}` : v;
 }
 
-export const airlineFor = (number?: string) => (number ? CARRIERS[number.slice(0, 2).toUpperCase()] : undefined);
-
 /**
- * Stand-in for the real flight-number lookup (BTS data) that comes with the backend:
- * for now it only knows routes already present in the sample data.
+ * If you've logged this flight number before, reuse its route and aircraft. (Looking up flights you
+ * haven't logged needs a flight-schedule data source, which comes with the background workers.)
  */
-export function lookupFlightNumber(number: string) {
+export function lookupFlightNumber(number: string, known: Flight[]) {
   const n = number.replace(/\s/g, "").toUpperCase();
   if (n.length < 3) return null;
-  const known = [...MY_FLIGHTS, ...UPCOMING_FLIGHTS].find((f) => f.number?.replace(/\s/g, "").toUpperCase() === n);
-  return known ? { from: known.from, to: known.to, aircraft: known.aircraft } : null;
+  const hit = known.find((f) => f.number?.replace(/\s/g, "").toUpperCase() === n);
+  return hit ? { from: hit.from, to: hit.to, aircraft: hit.aircraft } : null;
 }

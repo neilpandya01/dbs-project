@@ -1,90 +1,164 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { FRIENDS, PENDING_INCOMING, type Friend } from "./mock";
+import type { Banner } from "./banners";
+import type { Flight } from "./core";
+import { parseBanner, toFlight, type FlightRow } from "./db";
+import { useSupabase } from "./supabase";
+import { useMe } from "./useMe";
 
-export type Person = Friend;
-
-const KEY = "wingmates.friends.v1";
-/** Stand-in for a realtime "they accepted" event: requests you send are accepted after this long. */
-const DEMO_ACCEPT_MS = 8000;
-
-type State = {
-  friends: Person[];
-  /** requests you sent that haven't been answered */
-  sent: Person[];
-  /** requests waiting for you to answer */
-  incoming: Person[];
-  /** usernames of people who accepted since you last opened the Friends tab */
-  fresh: string[];
+/** One of your friends (accepted), with the profile they share with friends. */
+export type Person = {
+  id: string; // their Clerk user id
+  username: string;
+  name: string;
+  color: string;
+  home: string;
+  bio: string;
+  banner: Banner;
+  photo: string | null;
+  joined: string;
+  friendshipId: string;
 };
 
-const INITIAL: State = { friends: FRIENDS, sent: [], incoming: PENDING_INCOMING, fresh: [] };
+/** A friend request waiting on you (incoming) or on them (outgoing). Only safe fields are visible. */
+export type FriendRequest = { friendshipId: string; id: string; username: string; name: string; color: string };
 
-type Ctx = State & {
-  /** number shown on the red dot in the nav: requests to answer + new acceptances */
+type Summary = {
+  friendship_id: string; status: "pending" | "accepted"; direction: "incoming" | "outgoing";
+  other_user_id: string; username: string; display_name: string; avatar_color: string;
+  requester_seen: boolean; created_at: string; accepted_at: string | null;
+};
+type ProfileRow = {
+  user_id: string; username: string; display_name: string; bio: string; home_city: string;
+  avatar_color: string; photo_url: string | null; banner: unknown; created_at: string;
+};
+
+type Ctx = {
+  friends: Person[];
+  incoming: FriendRequest[];
+  outgoing: FriendRequest[];
+  /** usernames of people who accepted your request since you last opened Friends */
+  fresh: string[];
+  /** number on the red dot in the nav: requests to answer + new acceptances */
   badge: number;
-  send: (p: Person) => void;
-  accept: (p: Person) => void;
-  decline: (username: string) => void;
-  markSeen: () => void;
+  loading: boolean;
+  error: string | null;
+  /** A friend's visible flights (the ones they haven't hidden). */
+  flightsOf: (userId: string) => Flight[];
+  /** Each returns an error message, or null when it worked. */
+  send: (username: string) => Promise<string | null>;
+  accept: (friendshipId: string) => Promise<string | null>;
+  decline: (friendshipId: string) => Promise<string | null>;
+  remove: (friendshipId: string) => Promise<string | null>;
+  markSeen: () => Promise<void>;
+  refresh: () => Promise<void>;
 };
 
 const FriendsContext = createContext<Ctx | null>(null);
-
-const isState = (s: unknown): s is State =>
-  !!s && typeof s === "object" && ["friends", "sent", "incoming", "fresh"].every((k) => Array.isArray((s as Record<string, unknown>)[k]));
+const POLL_MS = 30_000;
 
 /**
- * Front-end stand-in for the friendships table, saved to this browser's localStorage.
- * Swap the actions for Supabase calls (and the timer for a realtime subscription) later.
+ * Your friends, requests and their flights, from Supabase. Friends see each other only after a request is
+ * accepted (enforced in the database). There is no push yet, so this refreshes every 30 seconds and when you
+ * come back to the tab.
  */
 export function FriendsProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<State>(INITIAL); // same on server and first client render
-  const [ready, setReady] = useState(false);
-  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const me = useMe();
+  const supabase = useSupabase();
+  const [summaries, setSummaries] = useState<Summary[]>([]);
+  const [profiles, setProfiles] = useState<Record<string, ProfileRow>>({});
+  const [flights, setFlights] = useState<Record<string, Flight[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(KEY);
-      const parsed = raw ? JSON.parse(raw) : null;
-      if (isState(parsed)) setState(parsed);
-    } catch {}
-    setReady(true);
-  }, []);
-
-  useEffect(() => {
-    if (ready) localStorage.setItem(KEY, JSON.stringify(state));
-  }, [state, ready]);
-
-  // demo: pretend each person you invited accepts a few seconds later
-  useEffect(() => {
-    if (!ready) return;
-    for (const p of state.sent) {
-      if (timers.current.has(p.username)) continue;
-      timers.current.set(
-        p.username,
-        setTimeout(() => {
-          timers.current.delete(p.username);
-          setState((s) =>
-            s.sent.some((x) => x.username === p.username)
-              ? { ...s, sent: s.sent.filter((x) => x.username !== p.username), friends: [...s.friends, p], fresh: [...s.fresh, p.username] }
-              : s
-          );
-        }, DEMO_ACCEPT_MS)
-      );
+  const refresh = useCallback(async () => {
+    if (!me.id) return;
+    const { data: sums, error: e } = await supabase.rpc("friend_summaries");
+    if (!alive.current) return;
+    if (e) { setError(e.message); setLoading(false); return; }
+    const rows = (sums ?? []) as Summary[];
+    const ids = rows.filter((s) => s.status === "accepted").map((s) => s.other_user_id);
+    let profs: ProfileRow[] = [];
+    const byFriend: Record<string, Flight[]> = {};
+    if (ids.length) {
+      const [p, f] = await Promise.all([
+        supabase.from("profiles").select("user_id,username,display_name,bio,home_city,avatar_color,photo_url,banner,created_at").in("user_id", ids),
+        supabase.from("flights").select("*").in("user_id", ids), // row-level security returns only what they haven't hidden
+      ]);
+      if (!alive.current) return;
+      profs = (p.data ?? []) as ProfileRow[];
+      for (const r of (f.data ?? []) as FlightRow[]) (byFriend[r.user_id] ??= []).push(toFlight(r));
     }
-  }, [ready, state.sent]);
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+    setSummaries(rows);
+    setProfiles(Object.fromEntries(profs.map((p) => [p.user_id, p])));
+    setFlights(byFriend);
+    setError(null);
+    setLoading(false);
+  }, [me.id, supabase]);
 
-  const send = useCallback((p: Person) => setState((s) => ({ ...s, sent: [...s.sent, p] })), []);
-  const accept = useCallback((p: Person) => setState((s) => ({ ...s, incoming: s.incoming.filter((x) => x.username !== p.username), friends: [...s.friends, p] })), []);
-  const decline = useCallback((u: string) => setState((s) => ({ ...s, incoming: s.incoming.filter((x) => x.username !== u) })), []);
-  const markSeen = useCallback(() => setState((s) => (s.fresh.length ? { ...s, fresh: [] } : s)), []);
+  useEffect(() => {
+    if (!me.id) return;
+    setLoading(true);
+    refresh();
+    const timer = setInterval(() => document.visibilityState === "visible" && refresh(), POLL_MS);
+    const onVisible = () => document.visibilityState === "visible" && refresh();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
+  }, [me.id, refresh]);
+
+  const friends = useMemo<Person[]>(
+    () =>
+      summaries
+        .filter((s) => s.status === "accepted")
+        .map((s) => {
+          const p = profiles[s.other_user_id];
+          return {
+            id: s.other_user_id,
+            username: p?.username ?? s.username,
+            name: p?.display_name || s.display_name || s.username,
+            color: p?.avatar_color ?? s.avatar_color,
+            home: p?.home_city ?? "",
+            bio: p?.bio ?? "",
+            banner: parseBanner(p?.banner),
+            photo: p?.photo_url ?? null,
+            joined: p ? new Date(p.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "",
+            friendshipId: s.friendship_id,
+          };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [summaries, profiles]
+  );
+
+  const asRequest = (s: Summary): FriendRequest => ({ friendshipId: s.friendship_id, id: s.other_user_id, username: s.username, name: s.display_name || s.username, color: s.avatar_color });
+  const incoming = useMemo(() => summaries.filter((s) => s.status === "pending" && s.direction === "incoming").map(asRequest), [summaries]);
+  const outgoing = useMemo(() => summaries.filter((s) => s.status === "pending" && s.direction === "outgoing").map(asRequest), [summaries]);
+  const fresh = useMemo(() => summaries.filter((s) => s.status === "accepted" && s.direction === "outgoing" && !s.requester_seen).map((s) => s.username), [summaries]);
+
+  const run = useCallback(
+    async (call: PromiseLike<{ error: { message: string } | null }>) => {
+      const { error: e } = await call;
+      if (e) return e.message;
+      await refresh();
+      return null;
+    },
+    [refresh]
+  );
+  const send = useCallback((username: string) => run(supabase.rpc("send_friend_request", { p_username: username })), [run, supabase]);
+  const accept = useCallback((id: string) => run(supabase.rpc("respond_friend_request", { p_id: id, p_accept: true })), [run, supabase]);
+  const decline = useCallback((id: string) => run(supabase.rpc("respond_friend_request", { p_id: id, p_accept: false })), [run, supabase]);
+  const remove = useCallback((id: string) => run(supabase.rpc("remove_friendship", { p_id: id })), [run, supabase]);
+  const markSeen = useCallback(async () => {
+    await supabase.rpc("mark_friend_accepts_seen");
+    await refresh();
+  }, [refresh, supabase]);
+  const flightsOf = useCallback((userId: string) => flights[userId] ?? [], [flights]);
 
   const value = useMemo(
-    () => ({ ...state, badge: state.incoming.length + state.fresh.length, send, accept, decline, markSeen }),
-    [state, send, accept, decline, markSeen]
+    () => ({ friends, incoming, outgoing, fresh, badge: incoming.length + fresh.length, loading, error, flightsOf, send, accept, decline, remove, markSeen, refresh }),
+    [friends, incoming, outgoing, fresh, loading, error, flightsOf, send, accept, decline, remove, markSeen, refresh]
   );
   return <FriendsContext.Provider value={value}>{children}</FriendsContext.Provider>;
 }

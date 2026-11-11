@@ -523,3 +523,23 @@ a.see-all:hover { text-decoration: underline; }
 .friends-pill.static:hover { transform: none; box-shadow: 0 2px 10px rgba(13,35,64,.15); background: rgba(255,255,255,.88); }
 .back-link { display: inline-block; margin: 0 0 10px; color: var(--accent); font-weight: 700; text-decoration: none; font-size: 15px; }
 .back-link:hover { text-decoration: underline; }
+
+/* ---------- sign-in / sign-up ---------- */
+.auth-page { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 28px 16px; }
+.auth-brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display), serif; font-weight: 700; font-size: 30px; letter-spacing: -.02em; }
+.auth-brand .brand-mark { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(160deg, #4aa8ff, #1f7ff0); display: grid; place-items: center; color: #fff; font-size: 19px; transform: rotate(-20deg); }
+.auth-tag { margin: 0 0 18px; color: var(--muted); }
+.account-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+
+.boot { min-height: 100dvh; display: grid; place-content: center; justify-items: center; gap: 10px; text-align: center; color: var(--muted); padding: 24px; }
+.check-row { display: flex !important; flex-direction: row; align-items: center; gap: 10px; font-weight: 600; font-size: 14px; }
+.check-row input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }
+.check-row small { display: block; font-weight: 500; color: var(--muted); margin: 0; }
+.combo-opt small { display: block; font-size: 12px; margin-left: 0; }
+.loading-block { padding: 60px 0; text-align: center; color: var(--muted); }
+.empty-line { margin: 0 0 6px; padding: 14px 4px; }
+.source-link { display: inline-block; margin-top: 10px; font-weight: 700; font-size: 14px; color: var(--accent); text-decoration: none; }
+.source-link:hover { text-decoration: underline; }
+.featured .source-link { color: #1257b3; }
+.remove-friend { text-align: center; margin: 28px 0 8px; }
+.danger-link { color: var(--bad) !important; }

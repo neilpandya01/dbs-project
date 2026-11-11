@@ -5,7 +5,7 @@ import { LegRow } from "@/components/TripList";
 import { useNow } from "@/components/useNow";
 import { useFlights } from "@/lib/flightsStore";
 import { dayCountdown, depOf, isPast, toLeg, type Leg } from "@/lib/itinerary";
-import { AIRPORTS, flightMiles } from "@/lib/mock";
+import { AIRPORTS, flightMiles } from "@/lib/core";
 
 type Status = "all" | "past" | "upcoming";
 type Sort = "newest" | "oldest" | "longest" | "shortest";
@@ -17,7 +17,8 @@ function haystack(l: Leg) {
   const parts = [l.number, l.airline, l.aircraft, l.date, l.time];
   for (const code of [l.from, l.to]) {
     const a = AIRPORTS[code];
-    parts.push(code, a.city, a.metro, a.country);
+    if (!a) continue;
+    parts.push(code, a.city, a.name, a.country);
   }
   parts.push(MONTHS[Number(l.date.slice(5, 7)) - 1], l.date.slice(0, 4));
   return parts.filter(Boolean).join(" ").toLowerCase();

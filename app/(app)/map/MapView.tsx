@@ -1,14 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Avatar } from "@/components/Avatar";
 import { FlightMap } from "@/components/FlightMapLazy";
 import type { MapAirport, MapPlane, MapRoute } from "@/components/FlightMap";
 import { AIRPORT_COLORS } from "@/lib/mapColors";
 import { useNow } from "@/components/useNow";
-import { fmtDate, isPast } from "@/lib/itinerary";
+import { AIRPORTS, flightMiles, type Flight } from "@/lib/core";
+import { fmtClock, fmtDate, isPast, toLeg } from "@/lib/itinerary";
 import { useFlights } from "@/lib/flightsStore";
-import { AIRPORTS, FRIENDS, flightMiles, friendVisited, type Flight } from "@/lib/mock";
+import { useFriends } from "@/lib/friendsStore";
+import { liveFlight } from "@/lib/live";
+import { useMe } from "@/lib/useMe";
+import { useSupabase } from "@/lib/supabase";
 
 type Mode = "all" | "mine" | "friends" | "starred";
 
@@ -22,53 +26,69 @@ type Item = {
   to: string;
   color: string;
   owner: string;
-  live?: { progress: number; altitudeFt: number; speedKts: number; aircraft: string };
+  /** On its way right now: how far along (by schedule) and when it lands. */
+  live?: { progress: number; lands?: string };
   miles: number;
   search: string;
 };
 
 const MINE_COLOR = "#1f7ff0";
 
-function buildItems(myFlights: Flight[]): Item[] {
+const searchText = (f: Flight, who: string) =>
+  `${who} ${f.number ?? ""} ${f.from} ${f.to} ${f.airline ?? ""} ${f.aircraft ?? ""} ${AIRPORTS[f.from]?.city ?? ""} ${AIRPORTS[f.to]?.city ?? ""}`.toLowerCase();
+
+function buildItems(myFlights: Flight[], friendLive: { name: string; username: string; color: string; flight: Flight; progress: number }[]): Item[] {
   return [
-  ...FRIENDS.filter((f) => f.live).map<Item>((f) => ({
-    id: `live-${f.username}`,
-    kind: "friend",
-    title: `${f.live!.from} → ${f.live!.to}`,
-    sub: `${f.live!.number} · ${f.live!.aircraft}`,
-    number: f.live!.number,
-    from: f.live!.from,
-    to: f.live!.to,
-    color: f.color,
-    owner: f.name,
-    live: f.live,
-    miles: Math.round(flightMiles({ from: f.live!.from, to: f.live!.to } as never)),
-    search: `${f.name} ${f.username} ${f.live!.number} ${f.live!.from} ${f.live!.to} ${f.live!.aircraft}`.toLowerCase(),
-  })),
-  ...[...myFlights]
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .map<Item>((f) => ({
-      id: f.id,
-      kind: "mine",
-      title: `${f.from} → ${f.to}`,
-      sub: [f.number, fmtDate(f.date)].filter(Boolean).join(" · "),
-      number: f.number ?? `${f.from}–${f.to}`,
-      from: f.from,
-      to: f.to,
-      color: MINE_COLOR,
-      owner: "You",
-      miles: Math.round(flightMiles(f)),
-      search: `${f.number ?? ""} ${f.from} ${f.to} ${f.airline ?? ""} ${f.aircraft ?? ""} ${AIRPORTS[f.from].city} ${AIRPORTS[f.to].city}`.toLowerCase(),
+    ...friendLive.map<Item>((l) => ({
+      id: l.flight.id,
+      kind: "friend",
+      title: `${l.flight.from} → ${l.flight.to}`,
+      sub: [l.flight.number, l.flight.aircraft].filter(Boolean).join(" · ") || "In flight",
+      number: l.flight.number ?? `${l.flight.from}–${l.flight.to}`,
+      from: l.flight.from,
+      to: l.flight.to,
+      color: l.color,
+      owner: l.name,
+      live: { progress: l.progress, lands: toLeg(l.flight).arr ? fmtClock(toLeg(l.flight).arr!) : undefined },
+      miles: Math.round(flightMiles(l.flight)),
+      search: searchText(l.flight, `${l.name} ${l.username}`),
     })),
-];
+    ...[...myFlights]
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .map<Item>((f) => ({
+        id: f.id,
+        kind: "mine",
+        title: `${f.from} → ${f.to}`,
+        sub: [f.number, fmtDate(f.date)].filter(Boolean).join(" · "),
+        number: f.number ?? `${f.from}–${f.to}`,
+        from: f.from,
+        to: f.to,
+        color: MINE_COLOR,
+        owner: "You",
+        miles: Math.round(flightMiles(f)),
+        search: searchText(f, ""),
+      })),
+  ];
 }
 
 export function MapView() {
   const { flights } = useFlights();
+  const { friends, flightsOf } = useFriends();
+  const me = useMe();
+  const supabase = useSupabase();
   const now = useNow() ?? new Date();
   // the map is your history: only flights that have landed
   const myFlights = useMemo(() => flights.filter((f) => isPast(f, now)), [flights, now]);
-  const ITEMS = useMemo(() => buildItems(myFlights), [myFlights]);
+  // friends who are in the air right now (by their flight's scheduled departure and arrival)
+  const friendLive = useMemo(
+    () =>
+      friends.flatMap((fr) => {
+        const l = liveFlight(flightsOf(fr.id), now);
+        return l ? [{ name: fr.name, username: fr.username, color: fr.color, flight: l.flight, progress: l.progress }] : [];
+      }),
+    [friends, flightsOf, now]
+  );
+  const ITEMS = useMemo(() => buildItems(myFlights, friendLive), [myFlights, friendLive]);
   const [mode, setMode] = useState<Mode>("all");
   const [query, setQuery] = useState("");
   const [selected, setSelectedRaw] = useState<string | null>(null);
@@ -78,7 +98,17 @@ export function MapView() {
     setSelectedRaw(id);
     if (id) { setOpen(false); setAirport(null); } // phones: tuck the list away to show the flight
   };
-  const [starred, setStarred] = useState<Set<string>>(new Set(["f1", "live-skyler"]));
+  const [starred, setStarred] = useState<Set<string>>(new Set());
+
+  // the flights you've starred are saved in Supabase (private to you)
+  useEffect(() => {
+    if (!me.id) return;
+    let alive = true;
+    supabase.from("tracked_flights").select("flight_id").then(({ data }) => {
+      if (alive && data) setStarred(new Set(data.map((r) => r.flight_id as string)));
+    });
+    return () => { alive = false; };
+  }, [me.id, supabase]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -107,9 +137,13 @@ export function MapView() {
     const m = new Map<string, { me: number; friends: string[] }>();
     const get = (c: string) => m.get(c) ?? m.set(c, { me: 0, friends: [] }).get(c)!;
     for (const f of myFlights) { get(f.from).me++; get(f.to).me++; }
-    for (const fr of FRIENDS) for (const c of friendVisited(fr)) if (!get(c).friends.includes(fr.name)) get(c).friends.push(fr.name);
+    for (const fr of friends) {
+      for (const f of flightsOf(fr.id).filter((x) => isPast(x, now))) {
+        for (const c of [f.from, f.to]) if (!get(c).friends.includes(fr.name)) get(c).friends.push(fr.name);
+      }
+    }
     return m;
-  }, [myFlights]);
+  }, [myFlights, friends, flightsOf, now]);
 
   const airports: MapAirport[] = useMemo(() => {
     const out: MapAirport[] = [];
@@ -133,13 +167,14 @@ export function MapView() {
   const sel = ITEMS.find((i) => i.id === selected);
   const focus = sel ? { from: sel.from, to: sel.to } : null;
 
-  const toggleStar = (id: string) =>
-    setStarred((s) => {
-      const n = new Set(s);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
+  const toggleStar = async (id: string) => {
+    const on = starred.has(id);
+    setStarred((cur) => { const n = new Set(cur); if (on) n.delete(id); else n.add(id); return n; }); // update right away
+    const { error } = on
+      ? await supabase.from("tracked_flights").delete().eq("flight_id", id)
+      : await supabase.from("tracked_flights").insert({ flight_id: id });
+    if (error) setStarred((cur) => { const n = new Set(cur); if (on) n.add(id); else n.delete(id); return n; }); // undo if it failed
+  };
 
   return (
     <div className="map-layout">
@@ -162,7 +197,11 @@ export function MapView() {
           onChange={(e) => setQuery(e.target.value)}
         />
         <div className="list">
-          {visible.length === 0 && <p className="muted" style={{ textAlign: "center", marginTop: 28 }}>No flights match.</p>}
+          {visible.length === 0 && (
+            <p className="muted" style={{ textAlign: "center", marginTop: 28 }}>
+              {ITEMS.length === 0 ? "Nothing to show yet. Add flights you've taken, and friends in the air appear here." : "No flights match."}
+            </p>
+          )}
           {visible.map((i) => (
             <div key={i.id} style={{ display: "flex", alignItems: "center" }}>
               <button className="track-item" aria-pressed={selected === i.id} onClick={() => setSelected(selected === i.id ? null : i.id)}>
@@ -223,9 +262,9 @@ export function MapView() {
               <span><b>{sel.miles.toLocaleString()}</b> mi</span>
               {sel.live ? (
                 <>
-                  <span><b>{sel.live.altitudeFt.toLocaleString()}</b> ft</span>
-                  <span><b>{sel.live.speedKts}</b> kts</span>
                   <span><b>{Math.round(sel.live.progress * 100)}%</b> there</span>
+                  {sel.live.lands && <span>lands <b>{sel.live.lands}</b></span>}
+                  <span className="muted">by schedule</span>
                 </>
               ) : (
                 <span className="muted">Completed flight</span>

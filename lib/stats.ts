@@ -1,16 +1,7 @@
-import { AIRPORTS, flightHours, flightMiles, type Flight } from "./mock";
+import { AIRPORTS, flagOf, flightHours, flightMiles, type Flight } from "./core";
 
 const EARTH_MILES = 24_901;
 const MOON_MILES = 238_855;
-
-export const COUNTRY_INFO: Record<string, { flag: string; continent: string }> = {
-  "United States": { flag: "🇺🇸", continent: "North America" },
-  Canada: { flag: "🇨🇦", continent: "North America" },
-  "United Kingdom": { flag: "🇬🇧", continent: "Europe" },
-  France: { flag: "🇫🇷", continent: "Europe" },
-  Japan: { flag: "🇯🇵", continent: "Asia" },
-};
-const info = (country: string) => COUNTRY_INFO[country] ?? { flag: "🌍", continent: "Other" };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 export const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -63,7 +54,8 @@ export function buildStats(flights: Flight[]) {
   // so a round trip adds 2 to both ends
   const countryVisits = tally(flights, (f) => [AIRPORTS[f.from].country, AIRPORTS[f.to].country]);
   const countries = new Set(countryVisits.map(([c]) => c));
-  const continents = new Set([...countries].map((c) => info(c).continent));
+  const continentOf = (country: string) => Object.values(AIRPORTS).find((a) => a.country === country)?.continent || "Other";
+  const continents = new Set([...countries].map(continentOf));
 
   // --- airlines
   const airlines = tally(flights, (f) => [f.airline]).map(([name, count]) => ({ name, count }));
@@ -97,7 +89,7 @@ export function buildStats(flights: Flight[]) {
     types, makers,
     routes,
     routeRepeats: routes.filter((r) => r.count > 1).length,
-    flag: (country: string) => info(country).flag,
+    flag: (country: string) => flagOf(Object.values(AIRPORTS).find((a) => a.country === country)?.countryCode ?? ""),
   };
 }
 

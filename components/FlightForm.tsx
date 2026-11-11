@@ -1,17 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { AirportPicker } from "./AirportPicker";
 import { Sheet } from "./Sheet";
-import { airlineFor, formatFlightNumber, lookupFlightNumber } from "@/lib/flightLookup";
-import { AIRPORTS, type Flight } from "@/lib/mock";
+import { airlineFor, type Flight } from "@/lib/core";
+import { formatFlightNumber, lookupFlightNumber } from "@/lib/flightLookup";
 
 const AIRCRAFT = [
   "Airbus A220-300", "Airbus A320", "Airbus A321", "Airbus A330-900", "Airbus A350-900",
   "Boeing 737-800", "Boeing 737 MAX 8", "Boeing 737 MAX 9", "Boeing 747-8", "Boeing 767-300ER",
   "Boeing 777-300ER", "Boeing 787-8", "Boeing 787-9", "Embraer E175",
 ];
-
-const AIRPORT_LIST = Object.values(AIRPORTS).sort((a, b) => a.code.localeCompare(b.code));
 
 const localToday = () => {
   const d = new Date();
@@ -34,13 +33,17 @@ function from24(t: string) {
 
 export function FlightForm({
   flight,
+  knownFlights,
   onSave,
   onDelete,
   onClose,
 }: {
   flight: Flight | null;
-  onSave: (f: Flight) => void;
-  onDelete?: () => void;
+  /** Flights you've already logged, so a repeat flight number can fill in its route. */
+  knownFlights: Flight[];
+  /** Resolve to an error message to show, or null when saved. */
+  onSave: (f: Omit<Flight, "id">) => Promise<string | null>;
+  onDelete?: () => Promise<string | null>;
   onClose: () => void;
 }) {
   const editing = !!flight;
@@ -53,30 +56,33 @@ export function FlightForm({
   const [routeTouched, setRouteTouched] = useState(editing);
   const [hint, setHint] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hidden, setHidden] = useState(flight?.hidden ?? false);
+  const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const onNumber = (raw: string) => {
     const v = formatFlightNumber(raw);
     setNumber(v);
     if (routeTouched) return;
-    const hit = lookupFlightNumber(v);
+    const hit = lookupFlightNumber(v, knownFlights);
     if (hit) {
       setFrom(hit.from);
       setTo(hit.to);
       if (!aircraft && hit.aircraft) setAircraft(hit.aircraft);
-      setHint(`Found ${v}: ${hit.from} → ${hit.to}. Check it looks right.`);
+      setHint(`You\u2019ve logged ${v} before: ${hit.from} → ${hit.to}. Check it looks right.`);
     } else {
       setHint(null);
     }
   };
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!date) return setError("Pick a date.");
     if (!from || !to) return setError("Choose where the flight left from and where it landed.");
     if (from === to) return setError("The two airports need to be different.");
-    onSave({
-      id: flight?.id ?? `m-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    setBusy(true);
+    setError(null);
+    const err = await onSave({
       date,
       time: time ? from24(time) : undefined,
       number: number.trim() || undefined,
@@ -84,7 +90,15 @@ export function FlightForm({
       from,
       to,
       aircraft: aircraft.trim() || undefined,
+      hidden,
     });
+    if (err) { setError(err); setBusy(false); }
+  };
+
+  const doDelete = async () => {
+    setBusy(true);
+    const err = await onDelete?.();
+    if (err) { setError(err); setConfirmDelete(false); setBusy(false); }
   };
 
   return (
@@ -119,27 +133,18 @@ export function FlightForm({
           </label>
         </div>
 
-        <div className="form-row">
-          <label>
-            <span>From</span>
-            <select className="input" value={from} onChange={(e) => { setFrom(e.target.value); setRouteTouched(true); setHint(null); }} required>
-              <option value="">Choose…</option>
-              {AIRPORT_LIST.map((a) => <option key={a.code} value={a.code}>{a.code} · {a.city}</option>)}
-            </select>
-          </label>
-          <label>
-            <span>To</span>
-            <select className="input" value={to} onChange={(e) => { setTo(e.target.value); setRouteTouched(true); setHint(null); }} required>
-              <option value="">Choose…</option>
-              {AIRPORT_LIST.map((a) => <option key={a.code} value={a.code}>{a.code} · {a.city}</option>)}
-            </select>
-          </label>
-        </div>
+        <AirportPicker label="From" value={from} onPick={(c) => { setFrom(c); setRouteTouched(true); setHint(null); }} />
+        <AirportPicker label="To" value={to} onPick={(c) => { setTo(c); setRouteTouched(true); setHint(null); }} />
 
         <label>
           <span>Aircraft <small>optional</small></span>
           <input className="input" list="aircraft-types" value={aircraft} onChange={(e) => setAircraft(e.target.value)} placeholder="Boeing 737-900" />
           <datalist id="aircraft-types">{AIRCRAFT.map((a) => <option key={a} value={a} />)}</datalist>
+        </label>
+
+        <label className="check-row">
+          <input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} />
+          <span>Hide this flight from friends<small> only you will see it</small></span>
         </label>
 
         <p className="form-hint">Connecting flights? Add each flight on its own. Flights close together are joined as one trip (with the layover) while they’re in “Flying soon”.</p>
@@ -150,13 +155,13 @@ export function FlightForm({
           <div className="confirm-delete" role="alertdialog" aria-label="Confirm delete">
             <p><b>Delete this flight?</b> It will be removed from your stats and map.</p>
             <div className="form-actions">
-              <button type="button" className="btn danger solid" onClick={onDelete}>Yes, delete</button>
+              <button type="button" className="btn danger solid" onClick={doDelete} disabled={busy}>Yes, delete</button>
               <button type="button" className="btn" onClick={() => setConfirmDelete(false)}>Keep it</button>
             </div>
           </div>
         ) : (
           <div className="form-actions">
-            <button type="submit" className="btn primary">{editing ? "Save changes" : "Add flight"}</button>
+            <button type="submit" className="btn primary" disabled={busy}>{busy ? "Saving…" : editing ? "Save changes" : "Add flight"}</button>
             <button type="button" className="btn" onClick={onClose}>Cancel</button>
           </div>
         )}

@@ -1,9 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
 import { Source_Sans_3, Source_Serif_4, JetBrains_Mono } from "next/font/google";
-import { Nav } from "@/components/Nav";
-import { FlightsProvider } from "@/lib/flightsStore";
-import { FriendsProvider } from "@/lib/friendsStore";
-import { ProfileProvider } from "@/lib/profileStore";
 import "./globals.css";
 
 const body = Source_Sans_3({ subsets: ["latin"], variable: "--font-body", display: "swap" });
@@ -25,19 +22,14 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${body.variable} ${display.variable} ${mono.variable}`}>
-      <body>
-        <ProfileProvider>
-          <FriendsProvider>
-            <FlightsProvider>
-              <div className="shell">
-                <Nav />
-                <main className="main">{children}</main>
-              </div>
-            </FlightsProvider>
-          </FriendsProvider>
-        </ProfileProvider>
-      </body>
-    </html>
+    <ClerkProvider
+      appearance={{
+        variables: { colorPrimary: "#1f7ff0", borderRadius: "0.9rem", fontFamily: "var(--font-body), system-ui, sans-serif" },
+      }}
+    >
+      <html lang="en" className={`${body.variable} ${display.variable} ${mono.variable}`}>
+        <body>{children}</body>
+      </html>
+    </ClerkProvider>
   );
 }

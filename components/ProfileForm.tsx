@@ -7,7 +7,7 @@ import { BannerBackground } from "./BannerBackground";
 import { CityPicker } from "./CityPicker";
 import { Sheet } from "./Sheet";
 import { AVATAR_COLORS, type Profile } from "@/lib/profileStore";
-import { USER } from "@/lib/mock";
+import { useMe } from "@/lib/useMe";
 
 const isPreset = (c: string) => AVATAR_COLORS.includes(c);
 const MAX_PHOTO_MB = 10;
@@ -24,8 +24,8 @@ async function toSquareJpeg(file: File, size = 256): Promise<string> {
   return canvas.toDataURL("image/jpeg", 0.85);
 }
 
-/** Keep the photo's own proportions, just cap the size so it stays light to store. */
-async function toBannerJpeg(file: File, maxW = 1600): Promise<string> {
+/** Keep the photo's own proportions, capped in size so it fits the database limit (about 500 KB as text). */
+async function toBannerJpeg(file: File, maxW = 1280): Promise<string> {
   const bmp = await createImageBitmap(file);
   const scale = Math.min(1, maxW / bmp.width);
   const canvas = document.createElement("canvas");
@@ -33,10 +33,16 @@ async function toBannerJpeg(file: File, maxW = 1600): Promise<string> {
   canvas.height = Math.round(bmp.height * scale);
   canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
   bmp.close();
-  return canvas.toDataURL("image/jpeg", 0.82);
+  let out = "";
+  for (const q of [0.8, 0.65, 0.5, 0.4]) {
+    out = canvas.toDataURL("image/jpeg", q);
+    if (out.length <= 520_000) return out;
+  }
+  throw new Error("too large");
 }
 
-export function ProfileForm({ profile, onSave, onClose }: { profile: Profile; onSave: (p: Profile) => void; onClose: () => void }) {
+export function ProfileForm({ profile, onSave, onClose }: { profile: Profile; onSave: (p: Profile) => Promise<string | null>; onClose: () => void }) {
+  const me = useMe();
   const [name, setName] = useState(profile.name);
   const [home, setHome] = useState(profile.home);
   const [homePlace, setHomePlace] = useState(profile.homePlace);
@@ -81,11 +87,14 @@ export function ProfileForm({ profile, onSave, onClose }: { profile: Profile; on
     }
   };
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return setError("Add a display name.");
     if (!home) return setError("Choose your home city.");
-    onSave({ name: name.trim(), home, homePlace, bio: bio.trim(), photo, color, banner });
+    setBusy(true);
+    setError(null);
+    const err = await onSave({ name: name.trim(), home, homePlace, bio: bio.trim(), photo, color, banner });
+    if (err) { setError(err); setBusy(false); }
   };
 
   return (
@@ -150,7 +159,7 @@ export function ProfileForm({ profile, onSave, onClose }: { profile: Profile; on
 
         <label>
           <span>Username</span>
-          <input className="input mono" value={`@${USER.username}`} readOnly disabled aria-describedby="uname-hint" />
+          <input className="input mono" value={`@${me.username}`} readOnly disabled aria-describedby="uname-hint" />
           <small id="uname-hint" className="muted">Usernames can’t be changed after sign-up.</small>
         </label>
 
@@ -164,7 +173,7 @@ export function ProfileForm({ profile, onSave, onClose }: { profile: Profile; on
         {error && <p className="msg err" role="alert">{error}</p>}
 
         <div className="form-actions">
-          <button type="submit" className="btn primary">Save profile</button>
+          <button type="submit" className="btn primary" disabled={busy}>{busy ? "Saving…" : "Save profile"}</button>
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
         </div>
       </form>

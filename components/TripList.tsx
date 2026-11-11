@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useFlights } from "@/lib/flightsStore";
-import { AIRPORTS, flightMiles } from "@/lib/mock";
+import { AIRPORTS, flightMiles } from "@/lib/core";
 import { fmtClock, fmtDate, fmtDuration, type Leg, type Trip } from "@/lib/itinerary";
 
 const arrow = (

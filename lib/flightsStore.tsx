@@ -2,66 +2,83 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { FlightForm } from "@/components/FlightForm";
-import { resolveUpcoming } from "./itinerary";
-import { AIRPORTS, MY_FLIGHTS, type Flight } from "./mock";
-
-const KEY = "wingmates.flights.v1";
+import { toFlight, toRow, type FlightRow } from "./db";
+import type { Flight } from "./core";
+import { useSupabase } from "./supabase";
+import { useMe } from "./useMe";
 
 type Ctx = {
+  /** Your own flights (past and upcoming). */
   flights: Flight[];
-  add: (f: Flight) => void;
-  update: (f: Flight) => void;
-  remove: (id: string) => void;
+  loading: boolean;
+  error: string | null;
+  /** Each returns an error message, or null when it worked. */
+  add: (f: Omit<Flight, "id">) => Promise<string | null>;
+  update: (f: Flight) => Promise<string | null>;
+  remove: (id: string) => Promise<string | null>;
   /** Open the add/edit sheet. Pass a flight to edit it, nothing to add a new one. */
   openEditor: (f?: Flight) => void;
-  reset: () => void;
 };
 
 const FlightsContext = createContext<Ctx | null>(null);
 
-function seed(): Flight[] {
-  // sample upcoming flights are relative to today; once seeded they are plain dated flights
-  const upcoming = resolveUpcoming(new Date()).map(({ dep: _dep, arr: _arr, ...f }) => f);
-  return [...MY_FLIGHTS, ...upcoming];
-}
-
-const valid = (f: unknown): f is Flight =>
-  !!f && typeof f === "object" && "from" in f && "to" in f && "date" in f && "id" in f &&
-  (f as Flight).from in AIRPORTS && (f as Flight).to in AIRPORTS;
-
-/**
- * Front-end stand-in for the database: flights live in React state and are saved to
- * this browser's localStorage. Swap the three mutators for Supabase calls later.
- */
+/** Your flights, stored in Supabase `flights` (only you can change them; friends can read the ones you haven't hidden). */
 export function FlightsProvider({ children }: { children: React.ReactNode }) {
-  const [flights, setFlights] = useState<Flight[]>(MY_FLIGHTS); // same on server and first client render
-  const [ready, setReady] = useState(false);
+  const me = useMe();
+  const supabase = useSupabase();
+  const [flights, setFlights] = useState<Flight[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [editor, setEditor] = useState<{ flight: Flight | null } | null>(null);
 
   useEffect(() => {
-    let next: Flight[] | null = null;
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) next = (JSON.parse(raw) as unknown[]).filter(valid);
-    } catch {}
-    setFlights(next ?? seed());
-    setReady(true);
-  }, []);
+    if (!me.id) return;
+    let alive = true;
+    setLoading(true);
+    supabase
+      .from("flights")
+      .select("*")
+      .eq("user_id", me.id) // my own; RLS would also return friends' visible flights
+      .order("flown_on", { ascending: false })
+      .then(({ data, error: e }) => {
+        if (!alive) return;
+        if (e) setError(e.message);
+        else { setFlights((data as FlightRow[]).map(toFlight)); setError(null); }
+        setLoading(false);
+      });
+    return () => { alive = false; };
+  }, [me.id, supabase]);
 
-  useEffect(() => {
-    if (ready) localStorage.setItem(KEY, JSON.stringify(flights));
-  }, [flights, ready]);
-
-  const add = useCallback((f: Flight) => setFlights((l) => [...l, f]), []);
-  const update = useCallback((f: Flight) => setFlights((l) => l.map((x) => (x.id === f.id ? f : x))), []);
-  const remove = useCallback((id: string) => setFlights((l) => l.filter((x) => x.id !== id)), []);
+  const add = useCallback(
+    async (f: Omit<Flight, "id">) => {
+      const { data, error: e } = await supabase.from("flights").insert(toRow(f)).select("*").single();
+      if (e) return e.message;
+      setFlights((l) => [...l, toFlight(data as FlightRow)]);
+      return null;
+    },
+    [supabase]
+  );
+  const update = useCallback(
+    async (f: Flight) => {
+      const { data, error: e } = await supabase.from("flights").update(toRow(f)).eq("id", f.id).select("*").single();
+      if (e) return e.message;
+      setFlights((l) => l.map((x) => (x.id === f.id ? toFlight(data as FlightRow) : x)));
+      return null;
+    },
+    [supabase]
+  );
+  const remove = useCallback(
+    async (id: string) => {
+      const { error: e } = await supabase.from("flights").delete().eq("id", id);
+      if (e) return e.message;
+      setFlights((l) => l.filter((x) => x.id !== id));
+      return null;
+    },
+    [supabase]
+  );
   const openEditor = useCallback((f?: Flight) => setEditor({ flight: f ?? null }), []);
-  const reset = useCallback(() => {
-    localStorage.removeItem(KEY);
-    setFlights(seed());
-  }, []);
 
-  const value = useMemo(() => ({ flights, add, update, remove, openEditor, reset }), [flights, add, update, remove, openEditor, reset]);
+  const value = useMemo(() => ({ flights, loading, error, add, update, remove, openEditor }), [flights, loading, error, add, update, remove, openEditor]);
 
   return (
     <FlightsContext.Provider value={value}>
@@ -69,13 +86,22 @@ export function FlightsProvider({ children }: { children: React.ReactNode }) {
       {editor && (
         <FlightForm
           flight={editor.flight}
+          knownFlights={flights}
           onClose={() => setEditor(null)}
-          onSave={(f) => {
-            if (editor.flight) update(f);
-            else add(f);
-            setEditor(null);
+          onSave={async (f) => {
+            const err = editor.flight ? await update({ ...f, id: editor.flight.id }) : await add(f);
+            if (!err) setEditor(null);
+            return err;
           }}
-          onDelete={editor.flight ? () => { remove(editor.flight!.id); setEditor(null); } : undefined}
+          onDelete={
+            editor.flight
+              ? async () => {
+                  const err = await remove(editor.flight!.id);
+                  if (!err) setEditor(null);
+                  return err;
+                }
+              : undefined
+          }
         />
       )}
     </FlightsContext.Provider>

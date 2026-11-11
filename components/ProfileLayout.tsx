@@ -12,7 +12,7 @@ import { TripList } from "./TripList";
 import { UpcomingList } from "./UpcomingList";
 import type { Banner } from "@/lib/banners";
 import { dayCountdown, depOf, fmtDate, splitFlights } from "@/lib/itinerary";
-import { AIRPORTS, type Flight } from "@/lib/mock";
+import { AIRPORTS, type Flight } from "@/lib/core";
 
 export type Identity = {
   name: string;
@@ -30,13 +30,14 @@ type Props = {
   who: Identity;
   /** Small line above the username: a greeting for you, the home city for a friend. */
   subtitle: string;
-  friendCount: number;
+  /** Shown for your own profile only (a friend's own friend list is private). */
+  friendCount?: number;
   /** Your own profile only: avatars shown on the friends pill, which links to your friends list. */
   friendAvatars?: { username: string; name: string; color: string }[];
   flights: Flight[];
   now: Date;
   /** Present only on your own profile: adding flights, editing, resetting. Friends' pages are read-only. */
-  own?: { onAddFlight: () => void; onEditProfile: () => void; onReset: () => void };
+  own?: { onAddFlight: () => void; onEditProfile: () => void; onManageAccount: () => void; onSignOut: () => void };
 };
 
 /**
@@ -74,18 +75,14 @@ export function ProfileLayout({ who, subtitle, friendCount, friendAvatars, fligh
             </button>
           </div>
         </div>
-        {own ? (
-          <Link href="/friends" className="friends-pill" aria-label={`${friendCount} friends. View friends`}>
+        {own && (
+          <Link href="/friends" className="friends-pill" aria-label={`${friendCount ?? 0} friends. View friends`}>
             <span className="friends-stack" aria-hidden="true">
               {(friendAvatars ?? []).slice(0, 3).map((f) => <Avatar key={f.username} name={f.name} color={f.color} size={22} />)}
             </span>
-            <span className="friends-text"><b>{friendCount}</b> friends</span>
+            <span className="friends-text"><b>{friendCount ?? 0}</b> friends</span>
             <span className="friends-chev" aria-hidden="true">›</span>
           </Link>
-        ) : (
-          <span className="friends-pill static">
-            <span className="friends-text"><b>{friendCount}</b> friends</span>
-          </span>
         )}
       </section>
 
@@ -169,21 +166,22 @@ export function ProfileLayout({ who, subtitle, friendCount, friendAvatars, fligh
             <ProfileRow label="Home city" value={who.home || "Not set"} muted={!who.home} />
             <ProfileRow label="Bio" value={who.bio || (own ? "No bio yet" : "No bio")} muted={!who.bio} />
             <ProfileRow label="Joined" value={who.joined} />
-            <ProfileRow label="Friends" value={String(friendCount)} />
+            {own && <ProfileRow label="Friends" value={String(friendCount ?? 0)} />}
           </dl>
           {own && (
             <button className="btn primary" style={{ width: "100%", padding: "12px 16px", marginTop: 14 }} onClick={() => { setDetails(false); own.onEditProfile(); }}>
               Edit profile
             </button>
           )}
+          {own && (
+            <div className="account-actions">
+              <button className="btn" onClick={() => { setDetails(false); own.onManageAccount(); }}>Account &amp; security</button>
+              <button className="btn" onClick={own.onSignOut}>Sign out</button>
+            </div>
+          )}
         </Sheet>
       )}
 
-      {own && (
-        <p className="fine-print">
-          Flights are saved in this browser for now. <button className="linkish" onClick={() => { if (confirm("Replace your flights with the sample data?")) own.onReset(); }}>Reset sample data</button>
-        </p>
-      )}
     </>
   );
 }

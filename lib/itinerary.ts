@@ -1,4 +1,4 @@
-import { UPCOMING_FLIGHTS, flightHours, type Flight, type UpcomingFlight } from "./mock";
+import { flightHours, type Flight } from "./core";
 
 /** A flight plus resolved departure/arrival instants (null when the clock time isn't known). */
 export type Leg = Flight & { dep: Date | null; arr: Date | null };
@@ -15,9 +15,6 @@ function parseTime(t: string): [number, number] | null {
   return [h, Number(m[2])];
 }
 
-const localISO = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
 /** Times are treated as local clock times; there is no time-zone handling yet. */
 export function toLeg(f: Flight): Leg {
   const hm = f.time ? parseTime(f.time) : null;
@@ -25,15 +22,6 @@ export function toLeg(f: Flight): Leg {
   const dep = new Date(f.date + "T00:00:00");
   dep.setHours(hm[0], hm[1], 0, 0);
   return { ...f, dep, arr: new Date(dep.getTime() + flightHours(f) * HOUR) };
-}
-
-/** The sample upcoming flights are stored as "N days from today". */
-export function resolveUpcoming(now: Date, list: UpcomingFlight[] = UPCOMING_FLIGHTS): Leg[] {
-  return list.map(({ dayOffset, ...f }) => {
-    const d = new Date(now);
-    d.setDate(d.getDate() + dayOffset);
-    return toLeg({ ...f, date: localISO(d) });
-  });
 }
 
 // For ordering and "is it soon" checks, a flight with no known time is treated as leaving at noon.

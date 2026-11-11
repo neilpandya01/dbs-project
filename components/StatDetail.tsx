@@ -1,4 +1,4 @@
-import { AIRPORTS, flightHours, flightMiles, type Flight } from "@/lib/mock";
+import { AIRPORTS, flightHours, flightMiles, type Flight } from "@/lib/core";
 import { fmtDate } from "@/lib/itinerary";
 import { WEEKDAYS, buildStats, type Stats } from "@/lib/stats";
 

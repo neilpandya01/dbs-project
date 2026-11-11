@@ -5,7 +5,7 @@ import { Sheet } from "./Sheet";
 import { StatCard } from "./StatCard";
 import { STAT_TITLES, StatDetail, type StatKey } from "./StatDetail";
 import { buildStats } from "@/lib/stats";
-import type { Flight } from "@/lib/mock";
+import type { Flight } from "@/lib/core";
 
 export function ProfileStats({ flights }: { flights: Flight[] }) {
   const s = buildStats(flights);
