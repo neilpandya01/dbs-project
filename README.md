@@ -4,6 +4,9 @@ Your flights, your spots, your crew. Wingmates is a free, all-in-one social app 
 flights, see your stats and historical flights, see your expected flights, keep tabs on friends' travels, and 
 keep up-to-date with the latest aviation news in one centralized area, both official and user-reported. 
 
+> **Please open v1 on a computer.** v1 is designed for a desktop or laptop screen. It will load on a phone, but the
+> layout isn't tuned for small screens yet. v2 adds mobile-friendly layouts and the installable app (see the v2 plan).
+
 ## Where v1 stands
 
 v1 is a wide build: a thin but real slice of every part of the proposal's journey (sign up,
