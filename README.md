@@ -19,6 +19,13 @@ partial username search (five closest matches). Anyone can be opened as a limite
 username behind a lock) with the right button for where the request stands: add, requested or cancel,
 accept or decline, or friends, who see each other's full profile, flights and stats.
 
+A lot of v1's time went into the interface, because the app only works if it feels right to an avgeek. I went back
+and forth on the design many times and changed screens as I used them myself. Examples of what that shaped: a Sky Blue
+palette with light and dark modes; a profile that opens on banners (presets or your own photo) and stats you can tap into 
+for detail; flight times shown as the local clock at each airport, the way a departure board does; and limited profiles 
+with a clear button for each request state; and the "remove friend" button moved somewhere easy to find after feedback. 
+The goal was for it to feel like a tool made by an avgeek, not a generic social app.
+
 Not built yet: live tracking of friends in the air is only simulated from scheduled times, and the news tab
 has its tables and community reports but no headline or alert ingestion, so it stays empty until some
 background worker feeds it.
