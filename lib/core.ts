@@ -29,6 +29,14 @@ export type Flight = {
   from: string;
   to: string;
   aircraft?: string;
+  /** Tail number, like N806VL. */
+  registration?: string;
+  /** Scheduled arrival clock time like "6:54 PM". */
+  arrTime?: string;
+  seat?: string;
+  notes?: string;
+  /** Where the details came from: filled in by the lookup, or typed in. */
+  source?: "manual" | "lookup";
   /** true = friends can't see this flight. */
   hidden?: boolean;
 };

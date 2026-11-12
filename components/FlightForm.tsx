@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AirportPicker } from "./AirportPicker";
 import { Sheet } from "./Sheet";
-import { airlineFor, type Flight } from "@/lib/core";
-import { formatFlightNumber, lookupFlightNumber } from "@/lib/flightLookup";
+import { AIRPORTS, airlineFor, type Flight } from "@/lib/core";
+import { fetchLookupStatus, formatFlightNumber, lookupFlight, lookupFlightNumber } from "@/lib/flightLookup";
+import type { LookupFlight } from "@/lib/lookupTypes";
 
 const AIRCRAFT = [
   "Airbus A220-300", "Airbus A320", "Airbus A321", "Airbus A330-900", "Airbus A350-900",
@@ -50,12 +51,24 @@ export function FlightForm({
   onboarding?: boolean;
 }) {
   const editing = !!flight;
+  // Adding a flight starts with just a flight number and date to look up; editing goes straight to the form.
+  const [step, setStep] = useState<"lookup" | "pick" | "form">(editing ? "form" : "lookup");
+  const [matches, setMatches] = useState<LookupFlight[]>([]);
+  const [looking, setLooking] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+
   const [number, setNumber] = useState(flight?.number ?? "");
   const [date, setDate] = useState(flight?.date ?? localToday());
   const [time, setTime] = useState(flight?.time ? to24(flight.time) : "");
+  const [arrTime, setArrTime] = useState(flight?.arrTime ? to24(flight.arrTime) : "");
   const [from, setFrom] = useState(flight?.from ?? "");
   const [to, setTo] = useState(flight?.to ?? "");
+  const [airline, setAirline] = useState(flight?.airline ?? "");
   const [aircraft, setAircraft] = useState(flight?.aircraft ?? "");
+  const [registration, setRegistration] = useState(flight?.registration ?? "");
+  const [seat, setSeat] = useState(flight?.seat ?? "");
+  const [notes, setNotes] = useState(flight?.notes ?? "");
+  const [source, setSource] = useState<"manual" | "lookup">(flight?.source ?? "manual");
   const [routeTouched, setRouteTouched] = useState(editing);
   const [hint, setHint] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -63,19 +76,72 @@ export function FlightForm({
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  // If lookups are switched off (allowance nearly used, or today's limit reached), skip straight to manual entry.
+  useEffect(() => {
+    if (editing) return;
+    let alive = true;
+    fetchLookupStatus().then((s) => {
+      if (!alive || s.available) return;
+      setStep((cur) => (cur === "lookup" ? "form" : cur));
+      setHint(s.reason === "user_limit" ? "You’ve used today’s flight lookups. Add the details below." : "Flight lookup is switched off right now. Add the details below.");
+    });
+    return () => { alive = false; };
+  }, [editing]);
+
   const onNumber = (raw: string) => {
     const v = formatFlightNumber(raw);
     setNumber(v);
-    if (routeTouched) return;
+    if (step !== "form" || routeTouched) return;
     const hit = lookupFlightNumber(v, knownFlights);
     if (hit) {
       setFrom(hit.from);
       setTo(hit.to);
       if (!aircraft && hit.aircraft) setAircraft(hit.aircraft);
-      setHint(`You\u2019ve logged ${v} before: ${hit.from} → ${hit.to}. Check it looks right.`);
+      setHint(`You’ve logged ${v} before: ${hit.from} → ${hit.to}. Check it looks right.`);
     } else {
       setHint(null);
     }
+  };
+
+  /** Fill the form with one flight the lookup found. */
+  const apply = (f: LookupFlight) => {
+    setNumber(formatFlightNumber(f.number));
+    setAirline(f.airline ?? airlineFor(f.number) ?? "");
+    setAircraft(f.aircraft ?? "");
+    setRegistration(f.registration ?? "");
+    setTime(f.depTime ? to24(f.depTime) : "");
+    setArrTime(f.arrTime ? to24(f.arrTime) : "");
+    const missing = [f.from, f.to].filter((c) => !AIRPORTS[c]);
+    setFrom(AIRPORTS[f.from] ? f.from : "");
+    setTo(AIRPORTS[f.to] ? f.to : "");
+    setRouteTouched(true);
+    setSource("lookup");
+    setHint(missing.length ? `Filled in from the lookup, but we don’t have ${missing.join(" and ")} in our airport list. Choose ${missing.length > 1 ? "them" : "it"} below.` : "Filled in from the flight lookup. Check it looks right, then add your seat or notes.");
+    setError(null);
+    setStep("form");
+  };
+
+  const manual = () => {
+    setLookupError(null);
+    setHint(null);
+    setStep("form");
+  };
+
+  const doLookup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!/^[A-Z0-9]{2} ?\d{1,4}[A-Z]?$/.test(number.trim())) return setLookupError("Enter a flight number like UA 2679.");
+    if (!date) return setLookupError("Pick a date.");
+    setLooking(true);
+    setLookupError(null);
+    const r = await lookupFlight(number, date);
+    setLooking(false);
+    if (r.status === "ok") return r.flights.length === 1 ? apply(r.flights[0]) : (setMatches(r.flights), setStep("pick"));
+    if (r.status === "none") return setLookupError("No flights found. Try a different flight number and date or add information manually.");
+    if (r.status === "unavailable") {
+      setStep("form");
+      return setHint(r.reason === "user_limit" ? "You’ve used today’s flight lookups. Add the details below." : "Flight lookup is switched off right now. Add the details below.");
+    }
+    setLookupError(`${r.message} Try again, or add information manually.`);
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -88,11 +154,16 @@ export function FlightForm({
     const err = await onSave({
       date,
       time: time ? from24(time) : undefined,
+      arrTime: arrTime ? from24(arrTime) : undefined,
       number: number.trim() || undefined,
-      airline: airlineFor(number),
+      airline: airline.trim() || airlineFor(number),
       from,
       to,
       aircraft: aircraft.trim() || undefined,
+      registration: registration.trim().toUpperCase() || undefined,
+      seat: seat.trim().toUpperCase() || undefined,
+      notes: notes.trim() || undefined,
+      source,
       hidden,
     });
     if (err) { setError(err); setBusy(false); }
@@ -104,9 +175,61 @@ export function FlightForm({
     if (err) { setError(err); setConfirmDelete(false); setBusy(false); }
   };
 
+  const title = editing ? "Edit flight" : onboarding ? "Add your first flight" : "Add a flight";
+  const closeLabel = onboarding ? "Skip for now" : "Cancel";
+
+  if (step === "lookup") {
+    return (
+      <Sheet title={title} onClose={onClose}>
+        <form className="form" onSubmit={doLookup} noValidate>
+          <p className="form-hint">Enter your flight number and date and we’ll fill in the rest.</p>
+          <label>
+            <span>Flight number</span>
+            <input className="input mono" value={number} onChange={(e) => { setNumber(formatFlightNumber(e.target.value)); setLookupError(null); }} placeholder="UA 2679" autoCapitalize="characters" autoComplete="off" spellCheck={false} autoFocus />
+          </label>
+          <label>
+            <span>Date</span>
+            <input className="input" type="date" value={date} onChange={(e) => { setDate(e.target.value); setLookupError(null); }} required />
+          </label>
+          {lookupError && <p className="msg err" role="alert">{lookupError}</p>}
+          <div className="form-actions">
+            <button type="submit" className="btn primary" disabled={looking}>{looking ? "Looking up…" : "Look up flight"}</button>
+            <button type="button" className="btn" onClick={manual} disabled={looking}>Add manually</button>
+            <button type="button" className="btn" onClick={onClose}>{closeLabel}</button>
+          </div>
+        </form>
+      </Sheet>
+    );
+  }
+
+  if (step === "pick") {
+    return (
+      <Sheet title="Which flight?" onClose={onClose}>
+        <div className="form">
+          <p className="form-hint">We found {matches.length} flights for {number} on {date}. Choose yours.</p>
+          <ul className="pick-list">
+            {matches.map((m, i) => (
+              <li key={i}>
+                <button type="button" className="pick-row" onClick={() => apply(m)}>
+                  <b className="mono">{m.from} → {m.to}</b>
+                  <span className="muted">{[m.fromCity, m.toCity].filter(Boolean).join(" to ")}</span>
+                  <span className="muted">{[m.depTime && `Departs ${m.depTime}`, m.arrTime && `Arrives ${m.arrTime}`, m.aircraft].filter(Boolean).join(" · ")}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="form-actions">
+            <button type="button" className="btn" onClick={() => setStep("lookup")}>Back</button>
+            <button type="button" className="btn" onClick={manual}>Add manually</button>
+          </div>
+        </div>
+      </Sheet>
+    );
+  }
+
   return (
     <Sheet
-      title={editing ? "Edit flight" : onboarding ? "Add your first flight" : "Add a flight"}
+      title={title}
       onClose={onClose}
       actions={
         onDelete && (
@@ -119,11 +242,13 @@ export function FlightForm({
       }
     >
       <form className="form" onSubmit={submit} noValidate>
+        {!editing && <button type="button" className="link-btn" onClick={() => setStep("lookup")}>← Look up a different flight</button>}
+        {hint && <p className="form-hint found">{hint}</p>}
+
         <label>
           <span>Flight number <small>optional</small></span>
           <input className="input mono" value={number} onChange={(e) => onNumber(e.target.value)} placeholder="UA 1234" autoCapitalize="characters" autoComplete="off" spellCheck={false} />
         </label>
-        {hint && <p className="form-hint found">{hint}</p>}
 
         <div className="form-row">
           <label>
@@ -139,10 +264,37 @@ export function FlightForm({
         <AirportPicker label="From" value={from} onPick={(c) => { setFrom(c); setRouteTouched(true); setHint(null); }} />
         <AirportPicker label="To" value={to} onPick={(c) => { setTo(c); setRouteTouched(true); setHint(null); }} />
 
+        <div className="form-row">
+          <label>
+            <span>Arrives <small>optional</small></span>
+            <input className="input" type="time" value={arrTime} onChange={(e) => setArrTime(e.target.value)} />
+          </label>
+          <label>
+            <span>Airline <small>optional</small></span>
+            <input className="input" value={airline} onChange={(e) => setAirline(e.target.value)} maxLength={60} placeholder="United" autoComplete="off" />
+          </label>
+        </div>
+
         <label>
           <span>Aircraft <small>optional</small></span>
-          <input className="input" list="aircraft-types" value={aircraft} onChange={(e) => setAircraft(e.target.value)} placeholder="Boeing 737-900" />
+          <input className="input" list="aircraft-types" value={aircraft} onChange={(e) => setAircraft(e.target.value)} maxLength={60} placeholder="Boeing 737-900" />
           <datalist id="aircraft-types">{AIRCRAFT.map((a) => <option key={a} value={a} />)}</datalist>
+        </label>
+
+        <div className="form-row">
+          <label>
+            <span>Registration <small>optional</small></span>
+            <input className="input mono" value={registration} onChange={(e) => setRegistration(e.target.value)} maxLength={12} placeholder="N806VL" autoCapitalize="characters" autoComplete="off" spellCheck={false} />
+          </label>
+          <label>
+            <span>Seat <small>optional</small></span>
+            <input className="input mono" value={seat} onChange={(e) => setSeat(e.target.value)} maxLength={8} placeholder="12A" autoCapitalize="characters" autoComplete="off" />
+          </label>
+        </div>
+
+        <label>
+          <span>Notes <small>optional · {notes.length}/500</small></span>
+          <textarea className="input" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} placeholder="Window seat, great sunset over Lake Michigan." />
         </label>
 
         <label className="check-row">
@@ -165,7 +317,7 @@ export function FlightForm({
         ) : (
           <div className="form-actions">
             <button type="submit" className="btn primary" disabled={busy}>{busy ? "Saving…" : editing ? "Save changes" : "Add flight"}</button>
-            <button type="button" className="btn" onClick={onClose}>{onboarding ? "Skip for now" : "Cancel"}</button>
+            <button type="button" className="btn" onClick={onClose}>{closeLabel}</button>
           </div>
         )}
       </form>

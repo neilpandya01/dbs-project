@@ -14,6 +14,11 @@ export type FlightRow = {
   to_airport: string;
   aircraft: string | null;
   hidden: boolean;
+  registration: string | null;
+  sched_arr_time: string | null;
+  seat: string | null;
+  notes: string | null;
+  source: "manual" | "lookup";
 };
 
 export const toFlight = (r: FlightRow): Flight => ({
@@ -26,6 +31,11 @@ export const toFlight = (r: FlightRow): Flight => ({
   to: r.to_airport,
   aircraft: r.aircraft ?? undefined,
   hidden: r.hidden,
+  registration: r.registration ?? undefined,
+  arrTime: r.sched_arr_time ?? undefined,
+  seat: r.seat ?? undefined,
+  notes: r.notes ?? undefined,
+  source: r.source,
 });
 
 /** The columns to write for a flight (no id or owner: the database sets the owner from the signed-in user). */
@@ -38,6 +48,11 @@ export const toRow = (f: Omit<Flight, "id">) => ({
   to_airport: f.to,
   aircraft: f.aircraft ?? null,
   hidden: !!f.hidden,
+  registration: f.registration ?? null,
+  sched_arr_time: f.arrTime ?? null,
+  seat: f.seat ?? null,
+  notes: f.notes ?? null,
+  source: f.source ?? "manual",
 });
 
 /** A banner stored as JSON in the database, checked before use (anything odd falls back to the default). */

@@ -546,3 +546,10 @@ a.see-all:hover { text-decoration: underline; }
 .featured .source-link { color: #1257b3; }
 .remove-friend { text-align: center; margin: 28px 0 8px; }
 .danger-link { color: var(--bad) !important; }
+
+/* flight lookup: choosing between several matching flights, and a small text-style button */
+.pick-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pick-row { width: 100%; display: grid; gap: 2px; text-align: left; padding: 12px 14px; border: 1px solid var(--line, rgba(0,0,0,.14)); border-radius: 14px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.pick-row:hover, .pick-row:focus-visible { border-color: var(--accent, #1f7ff0); background: rgba(31,127,240,.06); }
+.link-btn { justify-self: start; border: 0; background: transparent; padding: 0; color: var(--accent, #1f7ff0); font: inherit; font-size: 14px; cursor: pointer; }
+.link-btn:hover { text-decoration: underline; }
