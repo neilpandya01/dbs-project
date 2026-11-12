@@ -558,3 +558,26 @@ a.see-all:hover { text-decoration: underline; }
 .suggest-row:hover, .suggest-row:focus-visible { border-color: var(--accent, #1f7ff0); background: rgba(31,127,240,.06); }
 
 .leg-note { font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* friends list: remove from the row */
+.friend-row-wrap { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--border); }
+.friend-row-wrap:last-child { border-bottom: 0; }
+.friend-row-wrap .friend-row { flex: 1; min-width: 0; border-bottom: 0; }
+.friend-remove { flex: none; border: 0; background: transparent; color: var(--bad); font: inherit; font-size: 14px; font-weight: 600; padding: 8px 10px; border-radius: 10px; cursor: pointer; }
+.friend-remove:hover, .friend-remove:focus-visible { background: var(--bad-soft); }
+.friend-confirm { margin: 6px; width: 100%; }
+.hero-actions { position: relative; z-index: 1; align-self: flex-end; flex: none; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.hero-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #fff; cursor: pointer; font: inherit; font-size: 14px; font-weight: 600; color: #0d2340; background: rgba(255,255,255,.88); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); padding: 7px 14px; border-radius: 999px; box-shadow: 0 2px 10px rgba(13,35,64,.18); }
+.hero-btn:hover:not(.static):not(:disabled) { background: #fff; }
+.hero-btn:disabled { opacity: .6; cursor: default; }
+.hero-btn.static { cursor: default; }
+.hero-btn.primary { background: var(--accent, #1f7ff0); border-color: var(--accent, #1f7ff0); color: #fff; }
+.hero-btn.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--accent, #1f7ff0); }
+.hero-btn.danger { color: var(--bad); }
+.hero-user.static { cursor: default; }
+.hero-user.static:hover { text-decoration: none; }
+.locked-card { margin-top: 14px; display: grid; justify-items: center; gap: 6px; text-align: center; padding: 28px 18px; color: var(--muted); }
+.locked-card b { color: var(--text); font-size: 17px; }
+.locked-card p { margin: 0; max-width: 34ch; }
+
+.suggest-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; text-decoration: none; }

@@ -1,26 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Avatar } from "@/components/Avatar";
 import { useNow } from "@/components/useNow";
-import type { Flight } from "@/lib/core";
-import { useFriends, type Person } from "@/lib/friendsStore";
+import { useFriends, type Person, type Relation } from "@/lib/friendsStore";
 import { liveFlight } from "@/lib/live";
 import { useProfile } from "@/lib/profileStore";
 
-/** "UA 838 · Oct 14": the most recent flight a friend has taken. */
-function lastFlight(flights: Flight[], now: Date) {
-  const today = now.toISOString().slice(0, 10);
-  const last = flights.filter((f) => f.date <= today).sort((a, b) => b.date.localeCompare(a.date))[0];
-  if (!last) return null;
-  const d = new Date(last.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  return `${last.number ?? `${last.from} → ${last.to}`} · ${d}`;
-}
-
 export function FriendsView() {
-  const { friends, outgoing, incoming, fresh, loading, error, flightsOf, find, send, accept, decline, remove, markSeen } = useFriends();
+  const { friends, outgoing, incoming, fresh, loading, error, flightsOf, find, preview, accept, decline, remove, markSeen } = useFriends();
   const { profile } = useProfile();
+  const router = useRouter();
   const now = useNow() ?? new Date();
   // people who accepted since you last looked: shown here, and the red dot in the nav clears
   const [justAccepted, setJustAccepted] = useState<string[]>([]);
@@ -49,30 +41,47 @@ export function FriendsView() {
 
   const [busy, setBusy] = useState(false);
 
-  // Suggestions appear only once most of a username is typed (the database enforces the 80% rule, so
-  // short guesses return nothing and nobody can browse the user list).
-  const [suggestions, setSuggestions] = useState<{ username: string; name: string }[]>([]);
+  // removing a friend straight from the list (asks first)
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const [removeMsg, setRemoveMsg] = useState<string | null>(null);
+  /** Run a request action; if it fails, say so instead of silently doing nothing. */
+  const act = async (p: Promise<string | null>) => { const err = await p; setRemoveMsg(err ? `That didn’t work: ${err}` : null); };
+  const removeFriend = async (f: Person) => {
+    setRemoving(true);
+    const err = await remove(f.friendshipId);
+    setRemoving(false);
+    if (err) return setRemoveMsg(`Couldn’t remove ${f.name}: ${err}`);
+    setConfirmId(null);
+  };
+
+  // The five closest username matches for what's typed so far.
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<{ username: string; name: string; relation: Relation }[]>([]);
   useEffect(() => {
     const q = value.trim().replace(/^@/, "");
-    if (q.length < 3) { setSuggestions([]); return; }
+    if (q.length < 2) { setSuggestions([]); setSearchError(null); return; }
     let alive = true;
     const t = setTimeout(() => {
-      find(q).then((r) => { if (alive) setSuggestions(r.filter((s) => s.username.toLowerCase() !== profile.username.toLowerCase())); });
+      find(q)
+        .then((r) => { if (alive) { setSuggestions(r.filter((s) => s.username.toLowerCase() !== profile.username.toLowerCase())); setSearchError(null); } })
+        .catch((e: Error) => { if (alive) { setSuggestions([]); setSearchError(e.message); } });
     }, 250);
     return () => { alive = false; clearTimeout(t); };
   }, [value, find, profile.username]);
 
-  const add = async (e: React.FormEvent) => {
+  /** Open the person's profile (limited until they're a friend), where the request button lives. */
+  const lookUp = async (e: React.FormEvent) => {
     e.preventDefault();
     const u = value.trim().replace(/^@/, "").toLowerCase();
     if (!u) return setMsg({ ok: false, text: "Enter a username." });
     if (u === profile.username.toLowerCase()) return setMsg({ ok: false, text: "That's you!" });
     setBusy(true);
-    const err = await send(u);
+    // an exact username opens right away; otherwise the closest match does
+    const found = (await preview(u)) ?? (await find(u).catch(() => []))[0];
     setBusy(false);
-    if (err) return setMsg({ ok: false, text: err });
-    setValue("");
-    setMsg({ ok: true, text: `Request sent to @${u}.` });
+    if (!found) return setMsg({ ok: false, text: `No one found for “${u}”.` });
+    router.push(`/friends/${encodeURIComponent(found.username)}`);
   };
 
   return (
@@ -89,21 +98,23 @@ export function FriendsView() {
       })}
 
       <div className="card" style={justAccepted.length ? { marginTop: 12 } : undefined}>
-        <h2>Add a friend</h2>
-        <form className="add-row" onSubmit={add}>
+        <h2>Find people</h2>
+        <form className="add-row" onSubmit={lookUp}>
           <label className="at" style={{ display: "block" }}>
             <span aria-hidden="true">@</span>
-            <input className="input"  aria-label="Friend's username" value={value} onChange={(e) => { setValue(e.target.value); setMsg(null); }} autoCapitalize="none" autoCorrect="off" spellCheck={false} />
+            <input className="input"  aria-label="Username" value={value} onChange={(e) => { setValue(e.target.value); setMsg(null); }} autoCapitalize="none" autoCorrect="off" spellCheck={false} />
           </label>
-          <button className="btn primary" type="submit" disabled={busy}>{busy ? "Sending…" : "Send request"}</button>
+          <button className="btn primary" type="submit" disabled={busy}>{busy ? "Looking…" : "Find"}</button>
         </form>
+        {searchError && <p className="msg err" role="alert">Search isn’t working: {searchError}</p>}
         {suggestions.length > 0 && (
-          <ul className="suggest-list" aria-label="Matching usernames">
+          <ul className="suggest-list" aria-label="Closest matches">
             {suggestions.map((s) => (
               <li key={s.username}>
-                <button type="button" className="suggest-row" onClick={() => { setValue(s.username); setSuggestions([]); setMsg(null); }}>
-                  <b>{s.name}</b> <span className="muted">@{s.username}</span>
-                </button>
+                <Link href={`/friends/${encodeURIComponent(s.username)}`} className="suggest-row">
+                  <span><b>{s.name}</b> <span className="muted">@{s.username}</span></span>
+                  {s.relation !== "none" && <span className="badge">{{ friends: "Friends", requested: "Requested", incoming: "Wants to connect", self: "", none: "" }[s.relation]}</span>}
+                </Link>
               </li>
             ))}
           </ul>
@@ -119,17 +130,17 @@ export function FriendsView() {
           {incoming.map((p) => (
             <div className="flight-row" key={p.friendshipId}>
               <Avatar name={p.name} color={p.color} size={36} />
-              <div className="grow"><b>{p.name}</b><div className="sub">@{p.username}</div></div>
-              <button className="btn small primary" onClick={() => accept(p.friendshipId)}>Accept</button>
-              <button className="btn small" onClick={() => decline(p.friendshipId)}>Decline</button>
+              <Link href={`/friends/${encodeURIComponent(p.username)}`} className="grow" style={{ color: "inherit", textDecoration: "none" }}><b>{p.name}</b><div className="sub">@{p.username}</div></Link>
+              <button className="btn small primary" onClick={() => act(accept(p.friendshipId))}>Accept</button>
+              <button className="btn small" onClick={() => act(decline(p.friendshipId))}>Decline</button>
             </div>
           ))}
           {outgoing.map((p) => (
             <div className="flight-row" key={p.friendshipId}>
               <Avatar name={p.name} color={p.color} size={36} />
-              <div className="grow"><b>{p.name}</b><div className="sub">@{p.username}</div></div>
-              <span className="badge">Pending</span>
-              <button className="btn small" onClick={() => remove(p.friendshipId)} aria-label={`Cancel request to @${p.username}`}>Cancel</button>
+              <Link href={`/friends/${encodeURIComponent(p.username)}`} className="grow" style={{ color: "inherit", textDecoration: "none" }}><b>{p.name}</b><div className="sub">@{p.username}</div></Link>
+              <span className="badge">Requested</span>
+              <button className="btn small" onClick={() => act(remove(p.friendshipId))} aria-label={`Cancel request to @${p.username}`}>Cancel</button>
             </div>
           ))}
         </div>
@@ -142,29 +153,41 @@ export function FriendsView() {
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
         <input type="search" className="input" placeholder="Search" aria-label="Search friends by name or username" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
+      {removeMsg && <p className="msg err" role="alert">{removeMsg}</p>}
       {sections.map((sec) => (
         <section key={sec.title} className="card friend-list" aria-label={sec.title}>
           <h3 className="friend-list-title">{sec.title} <span className="muted">· {sec.people.length}</span></h3>
           {sec.people.map((f) => {
             const live = liveFlight(flightsOf(f.id), now);
-            const last = lastFlight(flightsOf(f.id), now);
             return (
+            <div key={f.username} className="friend-row-wrap">
+            {confirmId === f.id ? (
+              <div className="confirm-delete friend-confirm" role="alertdialog" aria-label={`Remove ${f.name}`}>
+                <p><b>Remove {f.name}?</b> You’ll stop seeing each other’s flights. You can send a new request later.</p>
+                <div className="form-actions">
+                  <button type="button" className="btn danger solid" disabled={removing} onClick={() => removeFriend(f)}>{removing ? "Removing…" : "Yes, remove"}</button>
+                  <button type="button" className="btn" disabled={removing} onClick={() => setConfirmId(null)}>Keep</button>
+                </div>
+              </div>
+            ) : (
+              <>
             <Link key={f.username} href={`/friends/${encodeURIComponent(f.username)}`} className="friend-row" aria-label={`View ${f.name}’s profile`}>
-              <span className={`friend-avatar${live ? " live" : ""}`}><Avatar name={f.name} color={f.color} size={44} src={f.photo} /></span>
-              <span className="friend-main">
-                <span className="friend-name">
-                  <b>{f.name}</b>
-                  {justAccepted.includes(f.username) && <span className="badge accent">New</span>}
+                <span className={`friend-avatar${live ? " live" : ""}`}><Avatar name={f.name} color={f.color} size={44} src={f.photo} /></span>
+                <span className="friend-main">
+                  <span className="friend-name">
+                    <b>{f.name}</b>
+                    {justAccepted.includes(f.username) && <span className="badge accent">New</span>}
+                  </span>
+                  <span className="friend-sub muted">@{f.username}{f.home ? ` · ${f.home}` : ""}</span>
+                  {live ? (
+                    <span className="friend-status live"><span className="dot pulse" aria-hidden="true" /> {live.flight.number ?? "In flight"} · {live.flight.from} → {live.flight.to}</span>
+                  ) : null}
                 </span>
-                <span className="friend-sub muted">@{f.username}{f.home ? ` · ${f.home}` : ""}</span>
-                {live ? (
-                  <span className="friend-status live"><span className="dot pulse" aria-hidden="true" /> {live.flight.number ?? "In flight"} · {live.flight.from} → {live.flight.to}</span>
-                ) : last ? (
-                  <span className="friend-status muted">Last flight: {last}</span>
-                ) : null}
-              </span>
-              <span className="row-chev" aria-hidden="true">›</span>
-            </Link>
+              </Link>
+                <button type="button" className="friend-remove" onClick={() => { setConfirmId(f.id); setRemoveMsg(null); }} aria-label={`Remove ${f.name} as a friend`}>Remove</button>
+              </>
+            )}
+            </div>
             );
           })}
         </section>
@@ -172,7 +195,7 @@ export function FriendsView() {
       {!loading && friends.length === 0 && (
         <div className="card empty" style={{ marginTop: 12 }}>
           <b>No friends yet</b>
-          <p className="muted" style={{ margin: 0 }}>Type a friend’s username above and send them a request. Once they accept, you’ll see each other’s flights.</p>
+          <p className="muted" style={{ margin: 0 }}>Find people by username above and send a request. Once it’s accepted, you’ll see each other’s flights.</p>
         </div>
       )}
       {friends.length > 0 && sections.length === 0 && <p className="muted" style={{ textAlign: "center", padding: "24px 0" }}>No friends match “{search}”.</p>}

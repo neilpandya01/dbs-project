@@ -35,5 +35,5 @@ Push to GitHub and import in Vercel (framework auto-detected, no env vars needed
 `postinstall` copies the MapLibre worker into `public/maplibre/` (git-ignored).
 
 ## Stack
-Next.js (App Router), TypeScript, MapLibre GL + OpenFreeMap tiles, Photon city search (OpenStreetMap data).
+Next.js (App Router), TypeScript, MapLibre GL + OpenFreeMap tiles, Open-Meteo city search (GeoNames data).
 Plain CSS, Sky Blue palette, light and dark. Sample data lives in `lib/mock.ts`.

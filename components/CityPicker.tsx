@@ -85,7 +85,7 @@ export function CityPicker({ id, value, onPick, label = "Home city" }: { id?: st
               <span>{r.label}</span>
             </li>
           ))}
-          <li className="combo-credit" aria-hidden="true">Search by Photon · © OpenStreetMap contributors</li>
+          <li className="combo-credit" aria-hidden="true">Search by Open-Meteo · GeoNames</li>
         </ul>
       )}
     </div>

@@ -99,7 +99,7 @@ const SECTIONS: Record<StatKey, (s: Stats) => React.ReactNode> = {
     return (
       <>
         <Facts items={[["hours", nf(s.hours)], ["days aloft", (s.hours / 24).toFixed(1)], ["avg flight", `${s.avgHours.toFixed(1)} h`]]} />
-        <Heading>How long your flights are</Heading>
+        <Heading>Flight lengths</Heading>
         <Rows rows={[
           { k: "Short", sub: "under 2.5 h", right: plural(s.haul.short, "flight"), pct: (s.haul.short / total) * 100 },
           { k: "Medium", sub: "2.5 to 6 h", right: plural(s.haul.medium, "flight"), pct: (s.haul.medium / total) * 100 },
@@ -131,7 +131,7 @@ const SECTIONS: Record<StatKey, (s: Stats) => React.ReactNode> = {
   airlines: (s) => (
     <>
       <Facts items={[["airlines", String(s.airlines.length)], ["favourite", s.airlines[0].name]]} />
-      <Heading>Who you fly</Heading>
+      <Heading>Airlines flown</Heading>
       <Rows rows={s.airlines.map((a) => ({ k: a.name, right: `${plural(a.count, "flight")} · ${share(a.count, s.airlineTotal)}`, pct: (a.count / s.airlines[0].count) * 100 }))} />
     </>
   ),

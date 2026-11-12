@@ -38,13 +38,17 @@ type Props = {
   now: Date;
   /** Present only on your own profile: adding flights, editing, resetting. Friends' pages are read-only. */
   own?: { onAddFlight: () => void; onEditProfile: () => void; onManageAccount: () => void; onSignOut: () => void };
+  /** Buttons at the bottom-right of the banner (friend status and actions on someone else's profile). */
+  heroActions?: React.ReactNode;
+  /** Not friends yet: only the banner, name and username, with a lock instead of everything else. */
+  limited?: boolean;
 };
 
 /**
  * The profile page, shared by your own profile and your friends' profiles.
  * Everything is the same; only the edit controls (the `own` prop) are yours alone.
  */
-export function ProfileLayout({ who, subtitle, friendCount, friendAvatars, flights, now, own }: Props) {
+export function ProfileLayout({ who, subtitle, friendCount, friendAvatars, flights, now, own, heroActions, limited }: Props) {
   const [details, setDetails] = useState(false);
   const [allFlights, setAllFlights] = useState(false);
   const [airport, setAirport] = useState<string | null>(null);
@@ -65,14 +69,22 @@ export function ProfileLayout({ who, subtitle, friendCount, friendAvatars, fligh
           <BannerBackground banner={who.banner} />
         </div>
         <div className="hero-top">
-          <button className="hero-avatar" onClick={() => setDetails(true)} aria-label="View profile details">
-            <Avatar name={who.name} size={60} color={who.color} src={who.photo} />
-          </button>
+          {limited ? (
+            <span className="hero-avatar"><Avatar name={who.name} size={60} color={who.color} src={who.photo} /></span>
+          ) : (
+            <button className="hero-avatar" onClick={() => setDetails(true)} aria-label="View profile details">
+              <Avatar name={who.name} size={60} color={who.color} src={who.photo} />
+            </button>
+          )}
           <div className="hero-info">
             <span className="hero-greet">{subtitle}</span>
-            <button className="hero-user" onClick={() => setDetails(true)} aria-label={`View profile details for @${who.username}`}>
-              @{who.username}<span className="hero-user-chev" aria-hidden="true"> ›</span>
-            </button>
+            {limited ? (
+              <span className="hero-user static">@{who.username}</span>
+            ) : (
+              <button className="hero-user" onClick={() => setDetails(true)} aria-label={`View profile details for @${who.username}`}>
+                @{who.username}<span className="hero-user-chev" aria-hidden="true"> ›</span>
+              </button>
+            )}
           </div>
         </div>
         {own && (
@@ -81,6 +93,7 @@ export function ProfileLayout({ who, subtitle, friendCount, friendAvatars, fligh
             Edit profile
           </button>
         )}
+        {heroActions && <div className="hero-actions">{heroActions}</div>}
         {own && (
           <Link href="/friends" className="friends-pill" aria-label={`${friendCount ?? 0} friends. View friends`}>
             <span className="friends-stack" aria-hidden="true">
@@ -92,6 +105,14 @@ export function ProfileLayout({ who, subtitle, friendCount, friendAvatars, fligh
         )}
       </section>
 
+      {limited ? (
+        <div className="card locked-card" role="status">
+          <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+          <b>Friends only</b>
+          <p className="muted">Flights, stats and profile details are visible once {who.name.split(" ")[0]} accepts a friend request.</p>
+        </div>
+      ) : (
+      <>
       <FlyingSoon trips={soon} now={now} editable={editable} />
 
       {done.length > 0 ? (
@@ -150,6 +171,9 @@ export function ProfileLayout({ who, subtitle, friendCount, friendAvatars, fligh
             )}
           </div>
         </>
+      )}
+
+      </>
       )}
 
       {allFlights && (

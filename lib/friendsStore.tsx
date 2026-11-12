@@ -24,6 +24,12 @@ export type Person = {
 /** A friend request waiting on you (incoming) or on them (outgoing). Only safe fields are visible. */
 export type FriendRequest = { friendshipId: string; id: string; username: string; name: string; color: string };
 
+/** Where you stand with someone: your own profile, nothing yet, you asked, they asked, or friends. */
+export type Relation = "self" | "none" | "requested" | "incoming" | "friends";
+
+/** What anyone signed in can see of a person before they're friends. */
+export type Preview = { id: string; username: string; name: string; color: string; banner: Banner; relation: Relation; friendshipId: string | null };
+
 type Summary = {
   friendship_id: string; status: "pending" | "accepted"; direction: "incoming" | "outgoing";
   other_user_id: string; username: string; display_name: string; avatar_color: string;
@@ -47,8 +53,10 @@ type Ctx = {
   /** A friend's visible flights (the ones they haven't hidden). */
   flightsOf: (userId: string) => Flight[];
   /** Each returns an error message, or null when it worked. */
-  /** Suggestions for what you've typed. The database only answers once at least 80% of a username is typed. */
-  find: (query: string) => Promise<{ username: string; name: string }[]>;
+  /** The five closest username matches for what's typed (at least 2 characters). */
+  find: (query: string) => Promise<{ username: string; name: string; relation: Relation }[]>;
+  /** The limited public view of one exact username, or null if there's no such person. */
+  preview: (username: string) => Promise<Preview | null>;
   send: (username: string) => Promise<string | null>;
   accept: (friendshipId: string) => Promise<string | null>;
   decline: (friendshipId: string) => Promise<string | null>;
@@ -152,8 +160,17 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
   const find = useCallback(
     async (query: string) => {
       const { data, error: e } = await supabase.rpc("find_profiles", { p_query: query });
-      if (e || !data) return [];
-      return (data as { username: string; display_name: string }[]).map((r) => ({ username: r.username, name: r.display_name || r.username }));
+      if (e) throw new Error(e.message);
+      return ((data ?? []) as { username: string; display_name: string; relation: Relation }[]).map((r) => ({ username: r.username, name: r.display_name || r.username, relation: r.relation }));
+    },
+    [supabase]
+  );
+  const preview = useCallback(
+    async (username: string): Promise<Preview | null> => {
+      const { data, error: e } = await supabase.rpc("profile_preview", { p_username: username });
+      const r = (data as { user_id: string; username: string; display_name: string; avatar_color: string; banner: unknown; relation: Relation; friendship_id: string | null }[] | null)?.[0];
+      if (e || !r) return null;
+      return { id: r.user_id, username: r.username, name: r.display_name || r.username, color: r.avatar_color, banner: parseBanner(r.banner), relation: r.relation, friendshipId: r.friendship_id };
     },
     [supabase]
   );
@@ -167,8 +184,8 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
   const flightsOf = useCallback((userId: string) => flights[userId] ?? [], [flights]);
 
   const value = useMemo(
-    () => ({ friends, incoming, outgoing, fresh, badge: incoming.length + fresh.length, loading, error, flightsOf, find, send, accept, decline, remove, markSeen, refresh }),
-    [friends, incoming, outgoing, fresh, loading, error, flightsOf, find, send, accept, decline, remove, markSeen, refresh]
+    () => ({ friends, incoming, outgoing, fresh, badge: incoming.length + fresh.length, loading, error, flightsOf, find, preview, send, accept, decline, remove, markSeen, refresh }),
+    [friends, incoming, outgoing, fresh, loading, error, flightsOf, find, preview, send, accept, decline, remove, markSeen, refresh]
   );
   return <FriendsContext.Provider value={value}>{children}</FriendsContext.Provider>;
 }
