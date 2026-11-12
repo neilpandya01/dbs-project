@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AirportPicker } from "./AirportPicker";
 import { Sheet } from "./Sheet";
 import { AIRPORTS, airlineFor, type Flight } from "@/lib/core";
 import { fetchLookupStatus, formatFlightNumber, lookupFlight, lookupFlightNumber } from "@/lib/flightLookup";
+import { toLeg } from "@/lib/itinerary";
 import type { LookupFlight } from "@/lib/lookupTypes";
 
 const AIRCRAFT = [
@@ -51,6 +52,8 @@ export function FlightForm({
   onboarding?: boolean;
 }) {
   const editing = !!flight;
+  // The card shows times from toLeg, so the form starts from the very same values: what you see on the card is what you edit.
+  const shown = flight ? toLeg(flight) : null;
   // Adding a flight starts with just a flight number and date to look up; editing goes straight to the form.
   const [step, setStep] = useState<"lookup" | "pick" | "form">(editing ? "form" : "lookup");
   const [matches, setMatches] = useState<LookupFlight[]>([]);
@@ -59,8 +62,8 @@ export function FlightForm({
 
   const [number, setNumber] = useState(flight?.number ?? "");
   const [date, setDate] = useState(flight?.date ?? localToday());
-  const [time, setTime] = useState(flight?.time ? to24(flight.time) : "");
-  const [arrTime, setArrTime] = useState(flight?.arrTime ? to24(flight.arrTime) : "");
+  const [time, setTime] = useState(shown?.depText ? to24(shown.depText) : flight?.time ? to24(flight.time) : "");
+  const [arrTime, setArrTime] = useState(shown?.arrText ? to24(shown.arrText) : "");
   const [from, setFrom] = useState(flight?.from ?? "");
   const [to, setTo] = useState(flight?.to ?? "");
   const [airline, setAirline] = useState(flight?.airline ?? "");
@@ -69,12 +72,22 @@ export function FlightForm({
   const [seat, setSeat] = useState(flight?.seat ?? "");
   const [notes, setNotes] = useState(flight?.notes ?? "");
   const [source, setSource] = useState<"manual" | "lookup">(flight?.source ?? "manual");
+  // exact moments + airport time zones from the lookup; dropped if the date or either time is edited by hand
+  const [exact, setExact] = useState<Pick<Flight, "depAt" | "arrAt" | "depTz" | "arrTz"> | null>(
+    flight?.depAt && flight.arrAt && flight.depTz && flight.arrTz ? { depAt: flight.depAt, arrAt: flight.arrAt, depTz: flight.depTz, arrTz: flight.arrTz } : null
+  );
   const [routeTouched, setRouteTouched] = useState(editing);
   const [hint, setHint] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hidden, setHidden] = useState(flight?.hidden ?? false);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const confirmRef = useRef<HTMLDivElement>(null);
+
+  // The delete confirmation is at the bottom of a long form: scroll it into view so it's never missed.
+  useEffect(() => {
+    if (confirmDelete) confirmRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [confirmDelete]);
 
   // If lookups are switched off (allowance nearly used, or today's limit reached), skip straight to manual entry.
   useEffect(() => {
@@ -116,6 +129,8 @@ export function FlightForm({
     setTo(AIRPORTS[f.to] ? f.to : "");
     setRouteTouched(true);
     setSource("lookup");
+    setExact(f.depAt && f.arrAt && f.depTz && f.arrTz ? { depAt: f.depAt, arrAt: f.arrAt, depTz: f.depTz, arrTz: f.arrTz } : null);
+    setDate(f.depAt && f.depTz ? new Date(f.depAt).toLocaleDateString("en-CA", { timeZone: f.depTz }) : date);
     setHint(missing.length ? `Filled in from the lookup, but we don’t have ${missing.join(" and ")} in our airport list. Choose ${missing.length > 1 ? "them" : "it"} below.` : "Filled in from the flight lookup. Check it looks right, then add your seat or notes.");
     setError(null);
     setStep("form");
@@ -164,6 +179,7 @@ export function FlightForm({
       seat: seat.trim().toUpperCase() || undefined,
       notes: notes.trim() || undefined,
       source,
+      ...exact,
       hidden,
     });
     if (err) { setError(err); setBusy(false); }
@@ -182,10 +198,9 @@ export function FlightForm({
     return (
       <Sheet title={title} onClose={onClose}>
         <form className="form" onSubmit={doLookup} noValidate>
-          <p className="form-hint">Enter your flight number and date and we’ll fill in the rest.</p>
           <label>
             <span>Flight number</span>
-            <input className="input mono" value={number} onChange={(e) => { setNumber(formatFlightNumber(e.target.value)); setLookupError(null); }} placeholder="UA 2679" autoCapitalize="characters" autoComplete="off" spellCheck={false} autoFocus />
+            <input className="input mono" value={number} onChange={(e) => { setNumber(formatFlightNumber(e.target.value)); setLookupError(null); }}  autoCapitalize="characters" autoComplete="off" spellCheck={false} autoFocus />
           </label>
           <label>
             <span>Date</span>
@@ -247,54 +262,54 @@ export function FlightForm({
 
         <label>
           <span>Flight number <small>optional</small></span>
-          <input className="input mono" value={number} onChange={(e) => onNumber(e.target.value)} placeholder="UA 1234" autoCapitalize="characters" autoComplete="off" spellCheck={false} />
+          <input className="input mono" value={number} onChange={(e) => onNumber(e.target.value)}  autoCapitalize="characters" autoComplete="off" spellCheck={false} />
         </label>
 
         <div className="form-row">
           <label>
             <span>Date</span>
-            <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+            <input className="input" type="date" value={date} onChange={(e) => { setDate(e.target.value); setExact(null); }} required />
           </label>
           <label>
-            <span>Departs <small>optional</small></span>
-            <input className="input" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+            <span>Departs <small>optional · local time</small></span>
+            <input className="input" type="time" value={time} onChange={(e) => { setTime(e.target.value); setExact(null); }} />
           </label>
         </div>
 
-        <AirportPicker label="From" value={from} onPick={(c) => { setFrom(c); setRouteTouched(true); setHint(null); }} />
-        <AirportPicker label="To" value={to} onPick={(c) => { setTo(c); setRouteTouched(true); setHint(null); }} />
+        <AirportPicker label="From" value={from} onPick={(c) => { setFrom(c); setRouteTouched(true); setHint(null); setExact(null); }} />
+        <AirportPicker label="To" value={to} onPick={(c) => { setTo(c); setRouteTouched(true); setHint(null); setExact(null); }} />
 
         <div className="form-row">
           <label>
-            <span>Arrives <small>optional</small></span>
-            <input className="input" type="time" value={arrTime} onChange={(e) => setArrTime(e.target.value)} />
+            <span>Arrives <small>optional · local time</small></span>
+            <input className="input" type="time" value={arrTime} onChange={(e) => { setArrTime(e.target.value); setExact(null); }} />
           </label>
           <label>
             <span>Airline <small>optional</small></span>
-            <input className="input" value={airline} onChange={(e) => setAirline(e.target.value)} maxLength={60} placeholder="United" autoComplete="off" />
+            <input className="input" value={airline} onChange={(e) => setAirline(e.target.value)} maxLength={60} autoComplete="off" />
           </label>
         </div>
 
         <label>
           <span>Aircraft <small>optional</small></span>
-          <input className="input" list="aircraft-types" value={aircraft} onChange={(e) => setAircraft(e.target.value)} maxLength={60} placeholder="Boeing 737-900" />
+          <input className="input" list="aircraft-types" value={aircraft} onChange={(e) => setAircraft(e.target.value)} maxLength={60} />
           <datalist id="aircraft-types">{AIRCRAFT.map((a) => <option key={a} value={a} />)}</datalist>
         </label>
 
         <div className="form-row">
           <label>
             <span>Registration <small>optional</small></span>
-            <input className="input mono" value={registration} onChange={(e) => setRegistration(e.target.value)} maxLength={12} placeholder="N806VL" autoCapitalize="characters" autoComplete="off" spellCheck={false} />
+            <input className="input mono" value={registration} onChange={(e) => setRegistration(e.target.value)} maxLength={12} autoCapitalize="characters" autoComplete="off" spellCheck={false} />
           </label>
           <label>
             <span>Seat <small>optional</small></span>
-            <input className="input mono" value={seat} onChange={(e) => setSeat(e.target.value)} maxLength={8} placeholder="12A" autoCapitalize="characters" autoComplete="off" />
+            <input className="input mono" value={seat} onChange={(e) => setSeat(e.target.value)} maxLength={8} autoCapitalize="characters" autoComplete="off" />
           </label>
         </div>
 
         <label>
           <span>Notes <small>optional · {notes.length}/500</small></span>
-          <textarea className="input" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} placeholder="Window seat, great sunset over Lake Michigan." />
+          <textarea className="input" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} />
         </label>
 
         <label className="check-row">
@@ -307,7 +322,7 @@ export function FlightForm({
         {error && <p className="msg err" role="alert">{error}</p>}
 
         {confirmDelete && onDelete ? (
-          <div className="confirm-delete" role="alertdialog" aria-label="Confirm delete">
+          <div className="confirm-delete" role="alertdialog" aria-label="Confirm delete" ref={confirmRef}>
             <p><b>Delete this flight?</b> It will be removed from your stats and map.</p>
             <div className="form-actions">
               <button type="button" className="btn danger solid" onClick={doDelete} disabled={busy}>Yes, delete</button>

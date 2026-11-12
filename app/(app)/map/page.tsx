@@ -8,7 +8,7 @@ export default function MapPage() {
     <>
       <div className="page-head map-head">
         <h1>Flight map</h1>
-        <p>Track your history and watch friends in the air. Star a flight to keep it on your radar.</p>
+        <p>See where you’ve flown and watch friends in the air.</p>
       </div>
       <MapView />
     </>

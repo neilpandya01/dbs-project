@@ -144,7 +144,7 @@ function ReportForm({ onClose, onPost }: { onClose: () => void; onPost: (airport
         <AirportPicker label="Airport" optional value={airport} onPick={setAirport} />
         <label>
           <span>Title <small>{title.length}/120</small></span>
-          <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} placeholder="Rare visitor on final into ORD" />
+          <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} />
         </label>
         <label>
           <span>Details <small>optional · {body.length}/500</small></span>

@@ -19,7 +19,7 @@ function lastFlight(flights: Flight[], now: Date) {
 }
 
 export function FriendsView() {
-  const { friends, outgoing, incoming, fresh, loading, error, flightsOf, send, accept, decline, remove, markSeen } = useFriends();
+  const { friends, outgoing, incoming, fresh, loading, error, flightsOf, find, send, accept, decline, remove, markSeen } = useFriends();
   const { profile } = useProfile();
   const now = useNow() ?? new Date();
   // people who accepted since you last looked: shown here, and the red dot in the nav clears
@@ -48,6 +48,19 @@ export function FriendsView() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const [busy, setBusy] = useState(false);
+
+  // Suggestions appear only once most of a username is typed (the database enforces the 80% rule, so
+  // short guesses return nothing and nobody can browse the user list).
+  const [suggestions, setSuggestions] = useState<{ username: string; name: string }[]>([]);
+  useEffect(() => {
+    const q = value.trim().replace(/^@/, "");
+    if (q.length < 3) { setSuggestions([]); return; }
+    let alive = true;
+    const t = setTimeout(() => {
+      find(q).then((r) => { if (alive) setSuggestions(r.filter((s) => s.username.toLowerCase() !== profile.username.toLowerCase())); });
+    }, 250);
+    return () => { alive = false; clearTimeout(t); };
+  }, [value, find, profile.username]);
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,10 +93,21 @@ export function FriendsView() {
         <form className="add-row" onSubmit={add}>
           <label className="at" style={{ display: "block" }}>
             <span aria-hidden="true">@</span>
-            <input className="input" placeholder="username" aria-label="Friend's username" value={value} onChange={(e) => { setValue(e.target.value); setMsg(null); }} autoCapitalize="none" autoCorrect="off" spellCheck={false} />
+            <input className="input"  aria-label="Friend's username" value={value} onChange={(e) => { setValue(e.target.value); setMsg(null); }} autoCapitalize="none" autoCorrect="off" spellCheck={false} />
           </label>
           <button className="btn primary" type="submit" disabled={busy}>{busy ? "Sending…" : "Send request"}</button>
         </form>
+        {suggestions.length > 0 && (
+          <ul className="suggest-list" aria-label="Matching usernames">
+            {suggestions.map((s) => (
+              <li key={s.username}>
+                <button type="button" className="suggest-row" onClick={() => { setValue(s.username); setSuggestions([]); setMsg(null); }}>
+                  <b>{s.name}</b> <span className="muted">@{s.username}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         <p className={`msg ${msg?.ok ? "ok" : "err"}`} role="status" aria-live="polite">{msg?.text}</p>
       </div>
 
@@ -116,7 +140,7 @@ export function FriendsView() {
       </div>
       <div className="search-box">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-        <input type="search" className="input" placeholder="Search friends by name or username" aria-label="Search friends by name or username" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <input type="search" className="input" placeholder="Search" aria-label="Search friends by name or username" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
       {sections.map((sec) => (
         <section key={sec.title} className="card friend-list" aria-label={sec.title}>

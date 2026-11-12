@@ -7,14 +7,12 @@ import type { MapAirport, MapPlane, MapRoute } from "@/components/FlightMap";
 import { AIRPORT_COLORS } from "@/lib/mapColors";
 import { useNow } from "@/components/useNow";
 import { AIRPORTS, flightMiles, type Flight } from "@/lib/core";
-import { fmtClock, fmtDate, isPast, toLeg } from "@/lib/itinerary";
+import { fmtDate, isPast, toLeg } from "@/lib/itinerary";
 import { useFlights } from "@/lib/flightsStore";
 import { useFriends } from "@/lib/friendsStore";
 import { liveFlight } from "@/lib/live";
-import { useMe } from "@/lib/useMe";
-import { useSupabase } from "@/lib/supabase";
 
-type Mode = "all" | "mine" | "friends" | "starred";
+type Mode = "all" | "mine" | "friends";
 
 type Item = {
   id: string;
@@ -49,7 +47,7 @@ function buildItems(myFlights: Flight[], friendLive: { name: string; username: s
       to: l.flight.to,
       color: l.color,
       owner: l.name,
-      live: { progress: l.progress, lands: toLeg(l.flight).arr ? fmtClock(toLeg(l.flight).arr!) : undefined },
+      live: { progress: l.progress, lands: toLeg(l.flight).arrText },
       miles: Math.round(flightMiles(l.flight)),
       search: searchText(l.flight, `${l.name} ${l.username}`),
     })),
@@ -74,8 +72,6 @@ function buildItems(myFlights: Flight[], friendLive: { name: string; username: s
 export function MapView() {
   const { flights } = useFlights();
   const { friends, flightsOf } = useFriends();
-  const me = useMe();
-  const supabase = useSupabase();
   const now = useNow() ?? new Date();
   // the map is your history: only flights that have landed
   const myFlights = useMemo(() => flights.filter((f) => isPast(f, now)), [flights, now]);
@@ -98,34 +94,21 @@ export function MapView() {
     setSelectedRaw(id);
     if (id) { setOpen(false); setAirport(null); } // phones: tuck the list away to show the flight
   };
-  const [starred, setStarred] = useState<Set<string>>(new Set());
-
-  // the flights you've starred are saved in Supabase (private to you)
-  useEffect(() => {
-    if (!me.id) return;
-    let alive = true;
-    supabase.from("tracked_flights").select("flight_id").then(({ data }) => {
-      if (alive && data) setStarred(new Set(data.map((r) => r.flight_id as string)));
-    });
-    return () => { alive = false; };
-  }, [me.id, supabase]);
-
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return ITEMS.filter((i) => {
       if (mode === "mine" && i.kind !== "mine") return false;
       if (mode === "friends" && i.kind !== "friend") return false;
-      if (mode === "starred" && !starred.has(i.id)) return false;
       return !q || i.search.includes(q);
     });
-  }, [ITEMS, mode, query, starred]);
+  }, [ITEMS, mode, query]);
 
   const routes: MapRoute[] = visible.map((i) => ({
     id: i.id,
     from: i.from,
     to: i.to,
     color: i.color,
-    highlight: i.id === selected || starred.has(i.id),
+    highlight: i.id === selected,
     progress: i.live?.progress,
   }));
   const planes: MapPlane[] = visible
@@ -167,23 +150,14 @@ export function MapView() {
   const sel = ITEMS.find((i) => i.id === selected);
   const focus = sel ? { from: sel.from, to: sel.to } : null;
 
-  const toggleStar = async (id: string) => {
-    const on = starred.has(id);
-    setStarred((cur) => { const n = new Set(cur); if (on) n.delete(id); else n.add(id); return n; }); // update right away
-    const { error } = on
-      ? await supabase.from("tracked_flights").delete().eq("flight_id", id)
-      : await supabase.from("tracked_flights").insert({ flight_id: id });
-    if (error) setStarred((cur) => { const n = new Set(cur); if (on) n.add(id); else n.delete(id); return n; }); // undo if it failed
-  };
-
   return (
     <div className="map-layout">
-      <aside className="card map-panel" data-open={open} aria-label="Flights to track">
+      <aside className="card map-panel" data-open={open} aria-label="Flights on the map">
         <button className="sheet-handle" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={open ? "Collapse flight list" : "Expand flight list"}><i /></button>
         <div className="tabs" role="group" aria-label="Filter">
-          {(["all", "mine", "friends", "starred"] as Mode[]).map((m) => (
+          {(["all", "mine", "friends"] as Mode[]).map((m) => (
             <button key={m} className="tab" aria-pressed={mode === m} onClick={() => { setMode(m); setOpen(true); }}>
-              {{ all: "All", mine: "My flights", friends: "Friends live", starred: "★ Tracked" }[m]}
+              {{ all: "All", mine: "My flights", friends: "Friends live" }[m]}
             </button>
           ))}
         </div>
@@ -191,7 +165,7 @@ export function MapView() {
           className="input search"
           style={{ marginTop: 10 }}
           type="search"
-          placeholder="Search flight, airport, friend…"
+          placeholder="Search"
           aria-label="Search flights"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -213,14 +187,6 @@ export function MapView() {
                   </span>
                 </span>
                 {i.live && <span className="badge good"><span className="dot pulse" />Live</span>}
-              </button>
-              <button
-                className="star"
-                aria-pressed={starred.has(i.id)}
-                aria-label={starred.has(i.id) ? `Stop tracking ${i.number}` : `Track ${i.number}`}
-                onClick={() => toggleStar(i.id)}
-              >
-                {starred.has(i.id) ? "★" : "☆"}
               </button>
             </div>
           ))}

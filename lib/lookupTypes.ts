@@ -13,6 +13,11 @@ export type LookupFlight = {
   /** Scheduled local clock times like "5:15 PM" */
   depTime?: string;
   arrTime?: string;
+  /** The exact moments (ISO, UTC) and each airport's time zone, so times can be shown as local clocks. */
+  depAt?: string;
+  arrAt?: string;
+  depTz?: string;
+  arrTz?: string;
 };
 
 export type LookupStatus = {

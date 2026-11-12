@@ -47,6 +47,8 @@ type Ctx = {
   /** A friend's visible flights (the ones they haven't hidden). */
   flightsOf: (userId: string) => Flight[];
   /** Each returns an error message, or null when it worked. */
+  /** Suggestions for what you've typed. The database only answers once at least 80% of a username is typed. */
+  find: (query: string) => Promise<{ username: string; name: string }[]>;
   send: (username: string) => Promise<string | null>;
   accept: (friendshipId: string) => Promise<string | null>;
   decline: (friendshipId: string) => Promise<string | null>;
@@ -147,6 +149,14 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
     [refresh]
   );
   const send = useCallback((username: string) => run(supabase.rpc("send_friend_request", { p_username: username })), [run, supabase]);
+  const find = useCallback(
+    async (query: string) => {
+      const { data, error: e } = await supabase.rpc("find_profiles", { p_query: query });
+      if (e || !data) return [];
+      return (data as { username: string; display_name: string }[]).map((r) => ({ username: r.username, name: r.display_name || r.username }));
+    },
+    [supabase]
+  );
   const accept = useCallback((id: string) => run(supabase.rpc("respond_friend_request", { p_id: id, p_accept: true })), [run, supabase]);
   const decline = useCallback((id: string) => run(supabase.rpc("respond_friend_request", { p_id: id, p_accept: false })), [run, supabase]);
   const remove = useCallback((id: string) => run(supabase.rpc("remove_friendship", { p_id: id })), [run, supabase]);
@@ -157,8 +167,8 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
   const flightsOf = useCallback((userId: string) => flights[userId] ?? [], [flights]);
 
   const value = useMemo(
-    () => ({ friends, incoming, outgoing, fresh, badge: incoming.length + fresh.length, loading, error, flightsOf, send, accept, decline, remove, markSeen, refresh }),
-    [friends, incoming, outgoing, fresh, loading, error, flightsOf, send, accept, decline, remove, markSeen, refresh]
+    () => ({ friends, incoming, outgoing, fresh, badge: incoming.length + fresh.length, loading, error, flightsOf, find, send, accept, decline, remove, markSeen, refresh }),
+    [friends, incoming, outgoing, fresh, loading, error, flightsOf, find, send, accept, decline, remove, markSeen, refresh]
   );
   return <FriendsContext.Provider value={value}>{children}</FriendsContext.Provider>;
 }

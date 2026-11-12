@@ -166,7 +166,7 @@ export function ProfileForm({ profile, username, onboarding, onSave, onClose }: 
 
         <label>
           <span>Bio <small>optional · {bio.length}/120</small></span>
-          <textarea id="pf-bio" className="input" rows={3} value={bio} onChange={(e) => setBio(e.target.value)} maxLength={120} placeholder="Window seat, always. A220 enthusiast." />
+          <textarea id="pf-bio" className="input" rows={3} value={bio} onChange={(e) => setBio(e.target.value)} maxLength={120} />
         </label>
 
         {error && <p className="msg err" role="alert">{error}</p>}

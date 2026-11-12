@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { useFlights } from "@/lib/flightsStore";
 import { AIRPORTS, flightMiles } from "@/lib/core";
-import { fmtClock, fmtDate, fmtDuration, type Leg, type Trip } from "@/lib/itinerary";
+import { fmtDate, fmtDuration, type Leg, type Trip } from "@/lib/itinerary";
 
 const arrow = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-label="to">
@@ -18,10 +18,15 @@ const arrow = (
  */
 export function LegRow({ leg, badge, extra, editable = true }: { leg: Leg; badge?: ReactNode; extra?: ReactNode; editable?: boolean }) {
   const { openEditor } = useFlights();
-  const what = [leg.number, leg.aircraft].filter(Boolean).join(" · ");
-  const when = [fmtDate(leg.date), leg.dep && leg.arr ? `${fmtClock(leg.dep)} – ${fmtClock(leg.arr)}${leg.arr.getDate() !== leg.dep.getDate() ? " +1" : ""}` : null].filter(Boolean).join(" · ");
+  // everything the flight was saved with shows here, so the card matches the edit form
+  const what = [leg.number, leg.airline, leg.aircraft, leg.registration].filter(Boolean).join(" · ");
+  // times are always the clock at each airport: departs where it leaves, arrives where it lands
+  const times = leg.depText
+    ? leg.arrText ? `${leg.depText} – ${leg.arrText}${leg.nextDay ? " +1" : ""}` : leg.depText
+    : leg.arrText ? `Arrives ${leg.arrText}` : null;
+  const when = [fmtDate(leg.date), times, leg.seat && `Seat ${leg.seat}`].filter(Boolean).join(" · ");
   const Row = editable ? "button" : "div";
-  const { dep: _dep, arr: _arr, ...flight } = leg;
+  const { dep: _dep, arr: _arr, depText: _dt, arrText: _at, nextDay: _nd, ...flight } = leg;
   return (
     <div className="flight-row-wrap">
       <Row
@@ -32,6 +37,7 @@ export function LegRow({ leg, badge, extra, editable = true }: { leg: Leg; badge
           <div className="route mono">{leg.from}{arrow}{leg.to}</div>
           {what && <div className="sub">{what}</div>}
           <div className="sub">{when}</div>
+          {leg.notes && <div className="sub leg-note">{leg.notes}</div>}
         </div>
         <div className="leg-right">
           <span className="muted mono" style={{ fontSize: 13 }}>{Math.round(flightMiles(leg)).toLocaleString()} mi</span>

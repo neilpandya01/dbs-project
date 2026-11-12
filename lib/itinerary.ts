@@ -1,7 +1,10 @@
 import { flightHours, type Flight } from "./core";
 
-/** A flight plus resolved departure/arrival instants (null when the clock time isn't known). */
-export type Leg = Flight & { dep: Date | null; arr: Date | null };
+/**
+ * A flight plus resolved departure/arrival instants (null when the clock time isn't known), and the times
+ * as text, always as the clock at that airport: `depText` where it leaves, `arrText` where it lands.
+ */
+export type Leg = Flight & { dep: Date | null; arr: Date | null; depText?: string; arrText?: string; nextDay?: boolean };
 export type Trip = Leg[];
 
 const HOUR = 3_600_000;
@@ -15,13 +18,33 @@ function parseTime(t: string): [number, number] | null {
   return [h, Number(m[2])];
 }
 
-/** Times are treated as local clock times; there is no time-zone handling yet. */
+/** A moment as the clock at a place ("7:55 AM"), or undefined if the zone isn't usable. */
+function clockIn(d: Date, tz: string) {
+  try { return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: tz }); } catch { return undefined; }
+}
+const dayIn = (d: Date, tz: string) => d.toLocaleDateString("en-CA", { timeZone: tz }); // YYYY-MM-DD
+
+/**
+ * Resolves a flight's times.
+ *  - From the lookup we know the exact moments and both airports' time zones, so the times are exact and each
+ *    is shown as the local clock where it happens (and "+1" when it lands the next day there).
+ *  - Typed-in flights only have clock times that are already local to their airport, so those are shown as
+ *    typed. Their moments are approximate (the departure clock is read in the viewer's zone, arrival is
+ *    estimated), which is only used for ordering and "in the air" checks. We don't show an estimated arrival.
+ */
 export function toLeg(f: Flight): Leg {
+  if (f.depAt && f.arrAt && f.depTz && f.arrTz) {
+    const dep = new Date(f.depAt), arr = new Date(f.arrAt);
+    const depText = clockIn(dep, f.depTz), arrText = clockIn(arr, f.arrTz);
+    if (!Number.isNaN(dep.getTime()) && !Number.isNaN(arr.getTime()) && depText && arrText) {
+      return { ...f, dep, arr, depText, arrText, nextDay: dayIn(arr, f.arrTz) > dayIn(dep, f.depTz) };
+    }
+  }
   const hm = f.time ? parseTime(f.time) : null;
-  if (!hm) return { ...f, dep: null, arr: null };
+  if (!hm) return { ...f, dep: null, arr: null, arrText: f.arrTime };
   const dep = new Date(f.date + "T00:00:00");
   dep.setHours(hm[0], hm[1], 0, 0);
-  return { ...f, dep, arr: new Date(dep.getTime() + flightHours(f) * HOUR) };
+  return { ...f, dep, arr: new Date(dep.getTime() + flightHours(f) * HOUR), depText: f.time, arrText: f.arrTime };
 }
 
 // For ordering and "is it soon" checks, a flight with no known time is treated as leaving at noon.

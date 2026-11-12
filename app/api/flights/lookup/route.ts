@@ -75,11 +75,25 @@ function clock(local?: string) {
   return `${h % 12 || 12}:${m[2]} ${h >= 12 ? "PM" : "AM"}`;
 }
 
+/** "2026-10-11 21:15Z" -> "2026-10-11T21:15:00.000Z", or undefined if it isn't a real moment. */
+function utcIso(utc?: string) {
+  const m = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})Z$/.exec(utc ?? "");
+  if (!m) return undefined;
+  const t = Date.parse(`${m[1]}T${m[2]}:00Z`);
+  return Number.isNaN(t) ? undefined : new Date(t).toISOString();
+}
+
+/** Only keep a time zone name the runtime recognises (like "America/New_York"). */
+function zone(tz?: string) {
+  if (!tz || tz.length > 64) return undefined;
+  try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return tz; } catch { return undefined; }
+}
+
 type Raw = {
   number?: string;
   codeshareStatus?: string;
-  departure?: { airport?: { iata?: string; municipalityName?: string }; scheduledTime?: { local?: string } };
-  arrival?: { airport?: { iata?: string; municipalityName?: string }; scheduledTime?: { local?: string } };
+  departure?: { airport?: { iata?: string; municipalityName?: string; timeZone?: string }; scheduledTime?: { local?: string; utc?: string } };
+  arrival?: { airport?: { iata?: string; municipalityName?: string; timeZone?: string }; scheduledTime?: { local?: string; utc?: string } };
   aircraft?: { reg?: string; model?: string };
   airline?: { name?: string };
 };
@@ -103,6 +117,10 @@ function normalize(raw: unknown): LookupFlight[] {
       toCity: f.arrival?.airport?.municipalityName,
       depTime: clock(f.departure?.scheduledTime?.local),
       arrTime: clock(f.arrival?.scheduledTime?.local),
+      depAt: utcIso(f.departure?.scheduledTime?.utc),
+      arrAt: utcIso(f.arrival?.scheduledTime?.utc),
+      depTz: zone(f.departure?.airport?.timeZone),
+      arrTz: zone(f.arrival?.airport?.timeZone),
     });
   }
   return out;
@@ -121,7 +139,7 @@ export async function POST(req: Request) {
 
   try {
     const db = supabaseAdmin();
-    const key = `${number}|${date}`;
+    const key = `v2|${number}|${date}`; // v2: results now include exact times and time zones
 
     // 1. cache: free, so it comes before every limit
     const { data: hit } = await db.from("flight_lookup_cache").select("found,payload").eq("cache_key", key).gt("expires_at", new Date().toISOString()).maybeSingle();

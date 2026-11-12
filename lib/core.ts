@@ -35,6 +35,11 @@ export type Flight = {
   arrTime?: string;
   seat?: string;
   notes?: string;
+  /** Exact departure/arrival moments (ISO, UTC) and airport time zones, when known (from the lookup). */
+  depAt?: string;
+  arrAt?: string;
+  depTz?: string;
+  arrTz?: string;
   /** Where the details came from: filled in by the lookup, or typed in. */
   source?: "manual" | "lookup";
   /** true = friends can't see this flight. */
