@@ -64,6 +64,15 @@ Then, incorporate the following to address gaps in v1:
   airport the author picks. Each item has an expiry, so old news drops off.
 - **Keys and limits:** every provider key stays server side. Calls are cached or throttled to stay inside each free tier.
 
+**Installable app (Android and iPhone)**
+- The proposal promised an installable web app, and v1 only has the basics (a web manifest with `display: standalone`
+  and theme colors). To finish it:
+- **PNG icons** (192, 512 and a maskable version) in the manifest, since Android install prompts and iOS ignore the SVG.
+- **iOS home-screen support:** an `apple-touch-icon` (180x180) and `appleWebApp` metadata (title, status bar style).
+- **A minimal service worker** so the app opens offline with a friendly screen and installs on every browser.
+- **Signed-out start:** make sure the installed app opens on sign-in, not an error page, when there is no session.
+- Have the application be more mobile-friendly
+
 ## Setup
 1. Copy `.env.example` to `.env.local` and fill in the Supabase, Clerk and RapidAPI keys (never commit them).
 2. Run each file in `supabase/migrations/` once, in filename order, in Supabase → SQL Editor.
