@@ -571,8 +571,9 @@ a.see-all:hover { text-decoration: underline; }
 .hero-btn:hover:not(.static):not(:disabled) { background: #fff; }
 .hero-btn:disabled { opacity: .6; cursor: default; }
 .hero-btn.static { cursor: default; }
-.hero-btn.primary { background: var(--accent, #1f7ff0); border-color: var(--accent, #1f7ff0); color: #fff; }
-.hero-btn.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--accent, #1f7ff0); }
+/* the main action: dark with a white edge, so it stands out on light and dark banners alike */
+.hero-btn.primary { background: #0d2340; border-color: #fff; color: #fff; box-shadow: 0 2px 12px rgba(13,35,64,.45); }
+.hero-btn.primary:hover:not(:disabled) { background: #163a66; }
 .hero-btn.danger { color: var(--bad); }
 .hero-user.static { cursor: default; }
 .hero-user.static:hover { text-decoration: none; }
