@@ -22,7 +22,7 @@ accept or decline, or friends, who see each other's full profile, flights and st
 A lot of v1's time went into the interface, because the app only works if it feels right to an avgeek. I went back
 and forth on the design many times and changed screens as I used them myself. Examples of what that shaped: a Sky Blue
 palette with light and dark modes; a profile that opens on banners (presets or your own photo) and stats you can tap into 
-for detail; flight times shown as the local clock at each airport, the way a departure board does; and limited profiles 
+for detail; flight times shown as the local clock at each airport, the way a departure board does; limited profiles 
 with a clear button for each request state; and the "remove friend" button moved somewhere easy to find after feedback. 
 The goal was for it to feel like a tool made by an avgeek, not a generic social app.
 
@@ -36,7 +36,8 @@ a "remove user" button more easily accessible.
 
 ## v2 plan
 
-- First, address any feedback provided. 
+**Address any feedback provided**
+- **One piece of feedback** - how can we track planned flights that became delayed or cancelled? 
 
 Then, incorporate the following to address gaps in v1:
 
