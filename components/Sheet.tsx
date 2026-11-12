@@ -5,10 +5,10 @@ import { useEffect, useRef } from "react";
 // open sheets, last = top-most (a flight editor can open on top of a "see all" list)
 const openSheets: symbol[] = [];
 
-export function Sheet({ title, onClose, actions, children }: { title: string; onClose: () => void; actions?: React.ReactNode; children: React.ReactNode }) {
+export function Sheet({ title, onClose, actions, locked, children }: { title: string; onClose: () => void; actions?: React.ReactNode; /** Can't be dismissed (no ✕, Esc or backdrop click). */ locked?: boolean; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
+  const closeRef = useRef(locked ? () => {} : onClose);
+  closeRef.current = locked ? () => {} : onClose;
 
   useEffect(() => {
     const me = Symbol("sheet");
@@ -27,14 +27,14 @@ export function Sheet({ title, onClose, actions, children }: { title: string; on
   }, []);
 
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
+    <div className="sheet-backdrop" onClick={locked ? undefined : onClose}>
       <div className="sheet" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={ref} onClick={(e) => e.stopPropagation()}>
         <div className="sheet-grab" aria-hidden="true" />
         <div className="sheet-head">
           <h2>{title}</h2>
           <div className="head-actions">
             {actions}
-            <button className="icon-btn" onClick={onClose} aria-label="Close">✕</button>
+            {!locked && <button className="icon-btn" onClick={onClose} aria-label="Close">✕</button>}
           </div>
         </div>
         <div className="sheet-body">{children}</div>

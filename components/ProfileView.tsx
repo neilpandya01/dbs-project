@@ -33,7 +33,7 @@ export function ProfileView() {
 
   return (
     <ProfileLayout
-      who={{ ...profile, username: me.username, joined: me.joined }}
+      who={{ ...profile, joined: me.joined }}
       subtitle={greeting}
       friendCount={friends.length}
       friendAvatars={friends}

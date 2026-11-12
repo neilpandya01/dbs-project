@@ -37,6 +37,7 @@ export function FlightForm({
   onSave,
   onDelete,
   onClose,
+  onboarding,
 }: {
   flight: Flight | null;
   /** Flights you've already logged, so a repeat flight number can fill in its route. */
@@ -45,6 +46,8 @@ export function FlightForm({
   onSave: (f: Omit<Flight, "id">) => Promise<string | null>;
   onDelete?: () => Promise<string | null>;
   onClose: () => void;
+  /** First-run step: titled "Add your first flight", and closing it means skipping. */
+  onboarding?: boolean;
 }) {
   const editing = !!flight;
   const [number, setNumber] = useState(flight?.number ?? "");
@@ -103,7 +106,7 @@ export function FlightForm({
 
   return (
     <Sheet
-      title={editing ? "Edit flight" : "Add a flight"}
+      title={editing ? "Edit flight" : onboarding ? "Add your first flight" : "Add a flight"}
       onClose={onClose}
       actions={
         onDelete && (
@@ -162,7 +165,7 @@ export function FlightForm({
         ) : (
           <div className="form-actions">
             <button type="submit" className="btn primary" disabled={busy}>{busy ? "Saving…" : editing ? "Save changes" : "Add flight"}</button>
-            <button type="button" className="btn" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn" onClick={onClose}>{onboarding ? "Skip for now" : "Cancel"}</button>
           </div>
         )}
       </form>

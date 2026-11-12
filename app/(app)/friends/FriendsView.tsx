@@ -7,7 +7,7 @@ import { useNow } from "@/components/useNow";
 import type { Flight } from "@/lib/core";
 import { useFriends, type Person } from "@/lib/friendsStore";
 import { liveFlight } from "@/lib/live";
-import { useMe } from "@/lib/useMe";
+import { useProfile } from "@/lib/profileStore";
 
 /** "UA 838 · Oct 14": the most recent flight a friend has taken. */
 function lastFlight(flights: Flight[], now: Date) {
@@ -20,7 +20,7 @@ function lastFlight(flights: Flight[], now: Date) {
 
 export function FriendsView() {
   const { friends, outgoing, incoming, fresh, loading, error, flightsOf, send, accept, decline, remove, markSeen } = useFriends();
-  const me = useMe();
+  const { profile } = useProfile();
   const now = useNow() ?? new Date();
   // people who accepted since you last looked: shown here, and the red dot in the nav clears
   const [justAccepted, setJustAccepted] = useState<string[]>([]);
@@ -53,7 +53,7 @@ export function FriendsView() {
     e.preventDefault();
     const u = value.trim().replace(/^@/, "").toLowerCase();
     if (!u) return setMsg({ ok: false, text: "Enter a username." });
-    if (u === me.username.toLowerCase()) return setMsg({ ok: false, text: "That's you!" });
+    if (u === profile.username.toLowerCase()) return setMsg({ ok: false, text: "That's you!" });
     setBusy(true);
     const err = await send(u);
     setBusy(false);

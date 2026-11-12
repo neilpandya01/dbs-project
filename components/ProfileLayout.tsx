@@ -71,10 +71,16 @@ export function ProfileLayout({ who, subtitle, friendCount, friendAvatars, fligh
           <div className="hero-info">
             <span className="hero-greet">{subtitle}</span>
             <button className="hero-user" onClick={() => setDetails(true)} aria-label={`View profile details for @${who.username}`}>
-              @{who.username}
+              @{who.username}<span className="hero-user-chev" aria-hidden="true"> ›</span>
             </button>
           </div>
         </div>
+        {own && (
+          <button className="hero-edit" onClick={own.onEditProfile}>
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+            Edit profile
+          </button>
+        )}
         {own && (
           <Link href="/friends" className="friends-pill" aria-label={`${friendCount ?? 0} friends. View friends`}>
             <span className="friends-stack" aria-hidden="true">

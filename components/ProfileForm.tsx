@@ -7,7 +7,6 @@ import { BannerBackground } from "./BannerBackground";
 import { CityPicker } from "./CityPicker";
 import { Sheet } from "./Sheet";
 import { AVATAR_COLORS, type Profile } from "@/lib/profileStore";
-import { useMe } from "@/lib/useMe";
 
 const isPreset = (c: string) => AVATAR_COLORS.includes(c);
 const MAX_PHOTO_MB = 10;
@@ -41,8 +40,7 @@ async function toBannerJpeg(file: File, maxW = 1280): Promise<string> {
   throw new Error("too large");
 }
 
-export function ProfileForm({ profile, onSave, onClose }: { profile: Profile; onSave: (p: Profile) => Promise<string | null>; onClose: () => void }) {
-  const me = useMe();
+export function ProfileForm({ profile, username, onboarding, onSave, onClose }: { profile: Profile; username: string; /** First-run setup: can't be dismissed. */ onboarding?: boolean; onSave: (p: Profile) => Promise<string | null>; onClose: () => void }) {
   const [name, setName] = useState(profile.name);
   const [home, setHome] = useState(profile.home);
   const [homePlace, setHomePlace] = useState(profile.homePlace);
@@ -93,12 +91,13 @@ export function ProfileForm({ profile, onSave, onClose }: { profile: Profile; on
     if (!home) return setError("Choose your home city.");
     setBusy(true);
     setError(null);
-    const err = await onSave({ name: name.trim(), home, homePlace, bio: bio.trim(), photo, color, banner });
+    const err = await onSave({ username, name: name.trim(), home, homePlace, bio: bio.trim(), photo, color, banner });
     if (err) { setError(err); setBusy(false); }
   };
 
   return (
-    <Sheet title="Edit profile" onClose={onClose}>
+    <Sheet title={onboarding ? "Set up your profile" : "Edit profile"} onClose={onClose} locked={onboarding}>
+      {onboarding && <p className="form-hint">Welcome aboard! Add a display name and your home city so friends can find you. You can change everything later.</p>}
       <form className="form" onSubmit={submit} noValidate>
         <div className="photo-edit" id="pf-photo" tabIndex={-1}>
           <Avatar name={name || "?"} color={color} size={88} src={photo} />
@@ -159,8 +158,8 @@ export function ProfileForm({ profile, onSave, onClose }: { profile: Profile; on
 
         <label>
           <span>Username</span>
-          <input className="input mono" value={`@${me.username}`} readOnly disabled aria-describedby="uname-hint" />
-          <small id="uname-hint" className="muted">Usernames can’t be changed after sign-up.</small>
+          <input className="input mono" value={`@${username}`} readOnly disabled aria-describedby="uname-hint" />
+          <small id="uname-hint" className="muted">Usernames can’t be changed after sign-up (changing it in your account settings won’t rename you here).</small>
         </label>
 
         <CityPicker id="pf-home" value={home} onPick={(p) => { setHome(p.label); setHomePlace({ lat: p.lat, lon: p.lon }); setError(null); }} />
@@ -173,8 +172,8 @@ export function ProfileForm({ profile, onSave, onClose }: { profile: Profile; on
         {error && <p className="msg err" role="alert">{error}</p>}
 
         <div className="form-actions">
-          <button type="submit" className="btn primary" disabled={busy}>{busy ? "Saving…" : "Save profile"}</button>
-          <button type="button" className="btn" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn primary" disabled={busy}>{busy ? "Saving…" : onboarding ? "Continue" : "Save profile"}</button>
+          {!onboarding && <button type="button" className="btn" onClick={onClose}>Cancel</button>}
         </div>
       </form>
     </Sheet>

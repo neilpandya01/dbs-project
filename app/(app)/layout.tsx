@@ -1,4 +1,5 @@
 import { Nav } from "@/components/Nav";
+import { Onboarding } from "@/components/Onboarding";
 import { AirportsProvider } from "@/lib/airports";
 import { FlightsProvider } from "@/lib/flightsStore";
 import { FriendsProvider } from "@/lib/friendsStore";
@@ -14,6 +15,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="shell">
               <Nav />
               <main className="main">{children}</main>
+            <Onboarding />
             </div>
           </FlightsProvider>
         </FriendsProvider>

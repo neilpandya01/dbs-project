@@ -25,6 +25,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <ClerkProvider
       appearance={{
         variables: { colorPrimary: "#1f7ff0", borderRadius: "0.9rem", fontFamily: "var(--font-body), system-ui, sans-serif" },
+        // usernames are permanent in Wingmates (the database ignores changes), so don't offer the button
+        elements: { profileSectionPrimaryButton__username: { display: "none" } },
       }}
     >
       <html lang="en" className={`${body.variable} ${display.variable} ${mono.variable}`}>
