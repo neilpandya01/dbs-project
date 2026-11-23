@@ -8,8 +8,10 @@ import { useSupabase } from "./supabase";
 import { useMe } from "./useMe";
 
 type Ctx = {
-  /** Your own flights (past and upcoming). */
+  /** Your own flights that count (past and upcoming). Cancelled flights are left out, so stats, the map and history ignore them. */
   flights: Flight[];
+  /** Everything you logged, including cancelled flights. Only the Flights tab search uses this. */
+  allFlights: Flight[];
   loading: boolean;
   error: string | null;
   /** Each returns an error message, or null when it worked. */
@@ -26,7 +28,8 @@ const FlightsContext = createContext<Ctx | null>(null);
 export function FlightsProvider({ children }: { children: React.ReactNode }) {
   const me = useMe();
   const supabase = useSupabase();
-  const [flights, setFlights] = useState<Flight[]>([]);
+  const [allFlights, setFlights] = useState<Flight[]>([]);
+  const flights = useMemo(() => allFlights.filter((f) => f.status !== "cancelled"), [allFlights]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editor, setEditor] = useState<{ flight: Flight | null } | null>(null);
@@ -78,7 +81,7 @@ export function FlightsProvider({ children }: { children: React.ReactNode }) {
   );
   const openEditor = useCallback((f?: Flight) => setEditor({ flight: f ?? null }), []);
 
-  const value = useMemo(() => ({ flights, loading, error, add, update, remove, openEditor }), [flights, loading, error, add, update, remove, openEditor]);
+  const value = useMemo(() => ({ flights, allFlights, loading, error, add, update, remove, openEditor }), [flights, allFlights, loading, error, add, update, remove, openEditor]);
 
   return (
     <FlightsContext.Provider value={value}>

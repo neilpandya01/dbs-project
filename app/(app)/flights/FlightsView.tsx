@@ -21,6 +21,7 @@ function haystack(l: Leg) {
     l.date, l.time, l.arrTime, l.depText, l.arrText,
     l.source === "lookup" ? "lookup" : "manual",
     l.hidden ? "hidden private" : undefined,
+    l.status, l.status === "delayed" ? "delay late" : l.status === "cancelled" ? "cancellation canceled" : undefined,
   ];
   for (const code of [l.from, l.to]) {
     const a = AIRPORTS[code];
@@ -50,7 +51,7 @@ function FilterSelect({ label, value, onChange, options }: { label: string; valu
 }
 
 export function FlightsView() {
-  const { flights, openEditor } = useFlights();
+  const { allFlights: flights, openEditor } = useFlights();
   const now = useNow() ?? new Date();
 
   const [q, setQ] = useState("");
@@ -60,6 +61,7 @@ export function FlightsView() {
   const [aircraft, setAircraft] = useState("");
   const [airport, setAirport] = useState("");
   const [country, setCountry] = useState("");
+  const [disruption, setDisruption] = useState(""); // "", "Delayed" or "Cancelled"
   const [sort, setSort] = useState<Sort>("newest");
 
   const legs = useMemo(() => flights.map(toLeg), [flights]);
@@ -72,13 +74,16 @@ export function FlightsView() {
     countries: uniq(legs.flatMap((l) => [AIRPORTS[l.from].country, AIRPORTS[l.to].country])),
   }), [legs]);
 
-  const activeFilters = [year, airline, aircraft, airport, country].filter(Boolean).length + (status !== "past" ? 1 : 0) + (q.trim() ? 1 : 0);
-  const clear = () => { setQ(""); setStatus("past"); setYear(""); setAirline(""); setAircraft(""); setAirport(""); setCountry(""); };
+  const activeFilters = [year, airline, aircraft, airport, country, disruption].filter(Boolean).length + (status !== "past" ? 1 : 0) + (q.trim() ? 1 : 0);
+  const clear = () => { setQ(""); setStatus("past"); setYear(""); setAirline(""); setAircraft(""); setAirport(""); setCountry(""); setDisruption(""); };
 
   const results = useMemo(() => {
     const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
     const out = legs.filter((l) => {
-      if (status !== "all" && (status === "past") !== isPast(l, now)) return false;
+      // cancelled flights never happened, so they only show under "All" or when you filter for them
+      if (disruption === "Delayed" && l.status !== "delayed") return false;
+      if (disruption === "Cancelled" ? l.status !== "cancelled" : l.status === "cancelled" && status !== "all") return false;
+      if (disruption !== "Cancelled" && status !== "all" && (status === "past") !== isPast(l, now)) return false;
       if (year && l.date.slice(0, 4) !== year) return false;
       if (airline && l.airline !== airline) return false;
       if (aircraft && l.aircraft !== aircraft) return false;
@@ -97,7 +102,7 @@ export function FlightsView() {
       shortest: (a: Leg, b: Leg) => flightMiles(a) - flightMiles(b),
     }[sort];
     return out.sort(by);
-  }, [legs, q, status, year, airline, aircraft, airport, country, sort, now]);
+  }, [legs, q, status, year, airline, aircraft, airport, country, disruption, sort, now]);
 
   // group by year when sorted by date
   const groups = useMemo(() => {
@@ -136,6 +141,7 @@ export function FlightsView() {
         <FilterSelect label="Airline" value={airline} onChange={setAirline} options={options.airlines} />
         <FilterSelect label="Aircraft" value={aircraft} onChange={setAircraft} options={options.aircraft} />
         <FilterSelect label="Airport" value={airport} onChange={setAirport} options={options.airports} />
+        <FilterSelect label="Delays & cancellations" value={disruption} onChange={setDisruption} options={["Delayed", "Cancelled"]} />
         <FilterSelect label="Country" value={country} onChange={setCountry} options={options.countries} />
       </div>
 

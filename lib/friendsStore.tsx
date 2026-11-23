@@ -100,7 +100,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
       ]);
       if (!alive.current) return;
       profs = (p.data ?? []) as ProfileRow[];
-      for (const r of (f.data ?? []) as FlightRow[]) (byFriend[r.user_id] ??= []).push(toFlight(r));
+      for (const r of (f.data ?? []) as FlightRow[]) if (r.status !== "cancelled") (byFriend[r.user_id] ??= []).push(toFlight(r));
     }
     setSummaries(rows);
     setProfiles(Object.fromEntries(profs.map((p) => [p.user_id, p])));

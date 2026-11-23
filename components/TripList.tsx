@@ -34,13 +34,14 @@ export function LegRow({ leg, badge, extra, editable = true }: { leg: Leg; badge
         {...(editable ? { type: "button" as const, onClick: () => openEditor(flight), "aria-label": `Edit flight ${leg.number ?? `${leg.from} to ${leg.to}`}` } : {})}
       >
         <div className="grow">
-          <div className="route mono">{leg.from}{arrow}{leg.to}</div>
+          <div className={`route mono${leg.status === "cancelled" ? " cancelled" : ""}`}>{leg.from}{arrow}{leg.to}</div>
           {what && <div className="sub">{what}</div>}
           <div className="sub">{when}</div>
           {leg.notes && <div className="sub leg-note">{leg.notes}</div>}
         </div>
         <div className="leg-right">
-          <span className="muted mono" style={{ fontSize: 13 }}>{Math.round(flightMiles(leg)).toLocaleString()} mi</span>
+          {leg.status !== "cancelled" && <span className="muted mono" style={{ fontSize: 13 }}>{Math.round(flightMiles(leg)).toLocaleString()} mi</span>}
+          {leg.status && <span className={`badge ${leg.status === "cancelled" ? "bad" : "warn"}`}>{leg.status === "cancelled" ? "Cancelled" : "Delayed"}</span>}
           {badge}
         </div>
         {editable && <span className="row-chev" aria-hidden="true">›</span>}

@@ -75,6 +75,7 @@ export function FlightForm({
   const [routeTouched, setRouteTouched] = useState(editing);
   const [hint, setHint] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<Flight["status"]>(flight?.status);
   const [hidden, setHidden] = useState(flight?.hidden ?? false);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -177,6 +178,7 @@ export function FlightForm({
       source,
       ...exact,
       hidden,
+      status,
     });
     if (err) { setError(err); setBusy(false); }
   };
@@ -301,8 +303,26 @@ export function FlightForm({
 
         <label>
           <span>Notes <small>optional · {notes.length}/500</small></span>
-          <textarea className="input" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} />
+          <textarea
+            className="input"
+            rows={3}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            maxLength={500}
+            placeholder={status === "delayed" ? "How long was the delay, and what happened?" : status === "cancelled" ? "What happened with the cancellation?" : undefined}
+          />
         </label>
+
+        <div className="status-box" role="group" aria-label="Delay or cancellation">
+          <label className="check-row">
+            <input type="checkbox" checked={status === "delayed"} onChange={(e) => setStatus(e.target.checked ? "delayed" : undefined)} />
+            <span>Note a Delay<small> the flight still counts; you can search for delayed flights</small></span>
+          </label>
+          <label className="check-row">
+            <input type="checkbox" checked={status === "cancelled"} onChange={(e) => setStatus(e.target.checked ? "cancelled" : undefined)} />
+            <span>Note a Cancellation<small> kept as a record only: it won’t count in your stats, map or history</small></span>
+          </label>
+        </div>
 
         <label className="check-row">
           <input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} />

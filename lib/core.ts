@@ -44,6 +44,8 @@ export type Flight = {
   source?: "manual" | "lookup";
   /** true = friends can't see this flight. */
   hidden?: boolean;
+  /** Left unset when the flight ran as planned. "delayed" still counts everywhere; "cancelled" is only a record and never counts. */
+  status?: "delayed" | "cancelled";
 };
 
 /** Airline name from a flight number's 2-letter prefix (a small starter list; unknown prefixes show no airline). */
