@@ -2,18 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Avatar } from "@/components/Avatar";
-import { useNow } from "@/components/useNow";
 import { useFriends, type Person, type Relation } from "@/lib/friendsStore";
-import { liveFlight } from "@/lib/live";
+import { useLivePositions } from "@/lib/livePositions";
 import { useProfile } from "@/lib/profileStore";
 
 export function FriendsView() {
   const { friends, outgoing, incoming, fresh, loading, error, flightsOf, find, preview, accept, decline, remove, markSeen } = useFriends();
   const { profile } = useProfile();
   const router = useRouter();
-  const now = useNow() ?? new Date();
   // people who accepted since you last looked: shown here, and the red dot in the nav clears
   const [justAccepted, setJustAccepted] = useState<string[]>([]);
   useEffect(() => {
@@ -24,19 +22,27 @@ export function FriendsView() {
   const [value, setValue] = useState("");
   const [search, setSearch] = useState("");
 
+  // "In the air" means the live tracker has a real position for them right now, not that the schedule says so.
+  // (Having this page open also tells the tracker to follow their flights.)
+  const { positions: real } = useLivePositions(true);
+  const liveOf = useCallback((id: string) => {
+    const flight = flightsOf(id).find((f) => real[f.id]);
+    return flight ? { flight } : null;
+  }, [flightsOf, real]);
+
   // friends in the air come first; everyone else follows alphabetically
   const sections = useMemo(() => {
     const q = search.trim().toLowerCase();
     const match = (f: Person) => !q || `${f.name} ${f.username}`.toLowerCase().includes(q.replace(/^@/, ""));
     const byName = (a: Person, b: Person) => a.name.localeCompare(b.name);
-    const isLive = (f: Person) => !!liveFlight(flightsOf(f.id), now);
+    const isLive = (f: Person) => !!liveOf(f.id);
     const live = friends.filter((f) => isLive(f) && match(f)).sort(byName);
     const rest = friends.filter((f) => !isLive(f) && match(f)).sort(byName);
     return [
       ...(live.length ? [{ title: "In the air now", people: live }] : []),
       ...(rest.length ? [{ title: live.length ? "On the ground" : "Friends", people: rest }] : []),
     ];
-  }, [friends, search, flightsOf, now]);
+  }, [friends, search, liveOf]);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const [busy, setBusy] = useState(false);
@@ -158,7 +164,7 @@ export function FriendsView() {
         <section key={sec.title} className="card friend-list" aria-label={sec.title}>
           <h3 className="friend-list-title">{sec.title} <span className="muted">· {sec.people.length}</span></h3>
           {sec.people.map((f) => {
-            const live = liveFlight(flightsOf(f.id), now);
+            const live = liveOf(f.id);
             return (
             <div key={f.username} className="friend-row-wrap">
             {confirmId === f.id ? (
