@@ -41,7 +41,11 @@ export function useLivePositions(watching: boolean) {
     if (!watching) return;
     let alive = true;
 
-    const beat = () => { if (document.visibilityState === "visible") void supabase.rpc("live_heartbeat"); };
+    // A Supabase request only goes out once something waits for it (.then): `void supabase.rpc(...)` sends nothing.
+    const beat = () => {
+      if (document.visibilityState !== "visible") return;
+      supabase.rpc("live_heartbeat").then(({ error }) => { if (error) console.debug("live heartbeat failed:", error.message); });
+    };
     const load = async () => {
       const { data } = await supabase.from("live_positions").select("*").eq("stage", "airborne");
       if (!alive || !data) return;
