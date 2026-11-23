@@ -46,11 +46,21 @@ export function useLivePositions(watching: boolean) {
       setByFlight(next);
     };
 
+    // Ask the server to look for friends' planes right now (they may already be in the air), then read the result.
+    const refresh = async () => {
+      try {
+        const res = await fetch("/api/live/refresh", { method: "POST" });
+        if (res.ok) console.debug("live tracking:", await res.json());
+      } catch { /* the scheduled tracker will still fill positions in */ }
+      if (alive) await load();
+    };
+
     beat();
     void load();
+    void refresh();
     const hb = setInterval(beat, HEARTBEAT_MS);
     const rf = setInterval(() => { if (document.visibilityState === "visible") void load(); }, REFRESH_MS);
-    const onVisible = () => { if (document.visibilityState === "visible") { beat(); void load(); } };
+    const onVisible = () => { if (document.visibilityState === "visible") { beat(); void refresh(); } };
     document.addEventListener("visibilitychange", onVisible);
 
     const channel = supabase

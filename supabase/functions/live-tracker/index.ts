@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
       for (const i of group) {
         const mine = sightings.filter((s) => match(s, i));
         const before = i.state;
-        i.state = step(before, pickSighting(mine, i.from, i.to, before), i.to, Date.now());
+        i.state = step(before, pickSighting(mine, i.from, i.to, before, i.callsign), i.to, Date.now());
         dirty.push({
           flight_id: i.f.id, user_id: i.f.user_id, stage: i.state.stage, hex: i.state.hex ?? null,
           lat: i.state.lat ?? null, lon: i.state.lon ?? null, alt_ft: i.state.altFt ?? null,

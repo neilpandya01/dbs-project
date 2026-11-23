@@ -160,10 +160,15 @@ export function parseSightings(json: unknown): Sighting[] {
   return out;
 }
 
-/** Of the aircraft returned for a flight, the one that fits it (route, then closeness to the origin). */
-export function pickSighting(list: Sighting[], from: Airport, to: Airport, state: State): Sighting | null {
+/**
+ * Of the aircraft returned for a flight, the one that fits it (route, then closeness to the origin).
+ * An aircraft flying under exactly this flight's callsign is trusted wherever it is: callsigns belong to
+ * a flight, so there's no need to check the route. Registrations and hex codes belong to the aircraft,
+ * which may be on another flight, so those still have to be on the route.
+ */
+export function pickSighting(list: Sighting[], from: Airport, to: Airport, state: State, trustCallsign?: string | null): Sighting | null {
   const fresh = list.filter((s) => s.ageS <= T.MAX_AGE_S);
-  const fits = fresh.filter((s) => (s.onGround ? miles(s, from) < 30 || miles(s, to) < 30 : onRoute(s, from, to, s.trackDeg)));
+  const fits = fresh.filter((s) => (trustCallsign && s.callsign === trustCallsign) || (s.onGround ? miles(s, from) < 30 || miles(s, to) < 30 : onRoute(s, from, to, s.trackDeg)));
   const pool = state.stage === "waiting" || !state.hex ? fits : fits.filter((s) => s.hex === state.hex);
   return pool.sort((a, b) => miles(a, from) - miles(b, from))[0] ?? null;
 }
