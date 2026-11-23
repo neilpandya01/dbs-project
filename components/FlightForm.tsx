@@ -302,7 +302,7 @@ export function FlightForm({
         </div>
 
         <label>
-          <span>Notes <small>optional · {notes.length}/500</small></span>
+          <span>Notes <small>optional · description, delay or cancellation details · {notes.length}/500</small></span>
           <textarea
             className="input"
             rows={3}
@@ -316,17 +316,17 @@ export function FlightForm({
         <div className="status-box" role="group" aria-label="Delay or cancellation">
           <label className="check-row">
             <input type="checkbox" checked={status === "delayed"} onChange={(e) => setStatus(e.target.checked ? "delayed" : undefined)} />
-            <span>Note a Delay<small> the flight still counts; you can search for delayed flights</small></span>
+            <span>Note a Delay</span>
           </label>
           <label className="check-row">
             <input type="checkbox" checked={status === "cancelled"} onChange={(e) => setStatus(e.target.checked ? "cancelled" : undefined)} />
-            <span>Note a Cancellation<small> kept as a record only: it won’t count in your stats, map or history</small></span>
+            <span>Note a Cancellation</span>
           </label>
         </div>
 
         <label className="check-row">
           <input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} />
-          <span>Hide this flight from friends<small> only you will see it</small></span>
+          <span>Hide this flight from friends</span>
         </label>
 
         <p className="form-hint">Connecting flights? Add each flight on its own. Flights close together are automatically joined.</p>
