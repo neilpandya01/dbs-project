@@ -317,7 +317,7 @@ export function FlightForm({
           <span>Hide this flight from friends<small> only you will see it</small></span>
         </label>
 
-        <p className="form-hint">Connecting flights? Add each flight on its own. Flights close together are joined as one trip (with the layover) while they’re in “Flying soon”.</p>
+        <p className="form-hint">Connecting flights? Add each flight on its own. Flights close together are automatically joined.</p>
 
         {error && <p className="msg err" role="alert">{error}</p>}
 

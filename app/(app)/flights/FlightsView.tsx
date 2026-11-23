@@ -12,15 +12,26 @@ type Sort = "newest" | "oldest" | "longest" | "shortest";
 
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
 
+const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
 /** Everything a search can match on for one flight, lowercased. */
 function haystack(l: Leg) {
-  const parts = [l.number, l.airline, l.aircraft, l.date, l.time];
+  const parts: (string | undefined)[] = [
+    l.number, l.number?.replace(/\s+/g, ""), l.airline, l.aircraft, l.registration, l.seat, l.notes,
+    l.date, l.time, l.arrTime, l.depText, l.arrText,
+    l.source === "lookup" ? "lookup" : "manual",
+    l.hidden ? "hidden private" : undefined,
+  ];
   for (const code of [l.from, l.to]) {
     const a = AIRPORTS[code];
-    if (!a) continue;
+    if (!a) { parts.push(code); continue; }
     parts.push(code, a.city, a.name, a.country);
   }
-  parts.push(MONTHS[Number(l.date.slice(5, 7)) - 1], l.date.slice(0, 4));
+  const mi = Number(l.date.slice(5, 7)) - 1;
+  const month = MONTHS[mi];
+  parts.push(month, month?.slice(0, 3), l.date.slice(0, 4));
+  const d = new Date(l.date + "T12:00:00");
+  if (!Number.isNaN(d.getTime())) { const wd = WEEKDAYS[d.getDay()]; parts.push(wd, wd.slice(0, 3)); }
   return parts.filter(Boolean).join(" ").toLowerCase();
 }
 
@@ -110,7 +121,7 @@ export function FlightsView() {
 
       <div className="search-box">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-        <input type="search" className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" aria-label="Search flights" />
+        <input type="search" className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search airline, flight no., airport, tail number, seat, notes…" aria-label="Search flights" />
       </div>
 
       <div className="filter-bar" role="group" aria-label="Filters">

@@ -159,7 +159,7 @@ export function ProfileForm({ profile, username, onboarding, onSave, onClose }: 
         <label>
           <span>Username</span>
           <input className="input mono" value={`@${username}`} readOnly disabled aria-describedby="uname-hint" />
-          <small id="uname-hint" className="muted">Usernames can’t be changed after sign-up (changing it in your account settings won’t rename you here).</small>
+          <small id="uname-hint" className="muted">Usernames can’t be changed after sign-up.</small>
         </label>
 
         <CityPicker id="pf-home" value={home} onPick={(p) => { setHome(p.label); setHomePlace({ lat: p.lat, lon: p.lon }); setError(null); }} />
