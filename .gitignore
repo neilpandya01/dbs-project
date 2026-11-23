@@ -6,3 +6,6 @@ node_modules
 next-env.d.ts
 .vercel
 public/maplibre
+
+# Supabase CLI local link files
+supabase/.temp/
