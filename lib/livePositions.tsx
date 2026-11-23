@@ -23,11 +23,12 @@ const toPos = (r: Row): LivePos | null =>
 
 const HEARTBEAT_MS = 30_000;
 const REFRESH_MS = 15_000; // while the map is open: ask the server to re-check the planes, then re-read
+const READ_MS = 3_000; // re-read saved positions this often (just a database read; the tracker may have written new ones)
 
 /**
  * Real positions of airborne flights, for you and your friends (the database only returns what you're allowed to see).
  * While `watching` is true and the tab is visible, this also tells the tracker you're looking, which is what makes
- * the tracker follow these flights. Positions arrive live (Supabase Realtime), and every 15 s the server is also asked to
+ * the tracker follow these flights. Positions arrive live (Supabase Realtime) and are also re-read every 3 s, and every 15 s the server is also asked to
  * re-check the planes directly, so the map keeps moving while you sit on it even if the scheduled tracker is slow.
  */
 export function useLivePositions(watching: boolean) {
@@ -66,6 +67,7 @@ export function useLivePositions(watching: boolean) {
     void load();
     void refresh();
     const hb = setInterval(beat, HEARTBEAT_MS);
+    const rd = setInterval(() => { if (document.visibilityState === "visible") void load(); }, READ_MS);
     const rf = setInterval(() => { if (document.visibilityState === "visible") void refresh(); }, REFRESH_MS);
     const onVisible = () => { if (document.visibilityState === "visible") { beat(); void refresh(); } };
     document.addEventListener("visibilitychange", onVisible);
@@ -93,6 +95,7 @@ export function useLivePositions(watching: boolean) {
       alive = false;
       clearInterval(hb);
       clearInterval(rf);
+      clearInterval(rd);
       document.removeEventListener("visibilitychange", onVisible);
       void supabase.removeChannel(channel);
     };
