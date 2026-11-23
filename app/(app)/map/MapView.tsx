@@ -44,7 +44,7 @@ type Item = {
   color: string;
   owner: string;
   photo?: string | null;
-  /** On its way right now: how far along (by schedule) and when it lands. */
+  /** On its way right now: how far along (from its real position) and its scheduled arrival. */
   live?: { progress: number; lands?: string; real?: LivePos };
   miles: number;
   search: string;
@@ -106,17 +106,19 @@ export function MapView() {
   const { positions: real, down: trackingDown } = useLivePositions(true); // also tells the tracker you're watching, so it follows these flights
   // the map is your history: only flights that have landed
   const myFlights = useMemo(() => flights.filter((f) => isPast(f, now)), [flights, now]);
-  // Friends in the air right now: a real position from the live tracker when there is one, otherwise the
-  // scheduled-time estimate (a plane that hasn't been picked up yet still shows, just by schedule).
+  // Friends in the air right now: only where the live tracker has a real position. No real position, no plane:
+  // an estimate from the schedule would say a delayed or cancelled flight is already flying.
   const friendLive = useMemo(
     () =>
       friends.flatMap((fr) => {
-        const fl = flightsOf(fr.id);
-        const tracked = fl.find((f) => real[f.id]);
-        if (tracked) return [{ name: fr.name, username: fr.username, color: fr.color, photo: fr.photo, flight: tracked, progress: progressOf(tracked, real[tracked.id]), real: real[tracked.id] }];
-        const l = liveFlight(fl, now);
-        return l ? [{ name: fr.name, username: fr.username, color: fr.color, photo: fr.photo, flight: l.flight, progress: l.progress }] : [];
+        const flight = flightsOf(fr.id).find((f) => real[f.id]);
+        return flight ? [{ name: fr.name, username: fr.username, color: fr.color, photo: fr.photo, flight, progress: progressOf(flight, real[flight.id]), real: real[flight.id] }] : [];
       }),
+    [friends, flightsOf, real]
+  );
+  // Only used for the "can't load" notice below: a friend's flight is scheduled to be flying but has no real position.
+  const scheduledButUnseen = useMemo(
+    () => friends.some((fr) => { const l = liveFlight(flightsOf(fr.id), now); return !!l && !real[l.flight.id]; }),
     [friends, flightsOf, now, real]
   );
   const ITEMS = useMemo(() => buildItems(myFlights, friendLive), [myFlights, friendLive]);
@@ -190,7 +192,7 @@ export function MapView() {
 
   const sel = ITEMS.find((i) => i.id === selected);
   // a friend may be flying right now by schedule, but we can't show where the plane is
-  const noLivePositions = trackingDown && ITEMS.some((i) => i.kind === "friend" && i.live && !i.live.real);
+  const noLivePositions = trackingDown && scheduledButUnseen;
   const focus = sel ? { id: sel.id, from: sel.from, to: sel.to } : null;
 
   return (
@@ -240,8 +242,8 @@ export function MapView() {
       <div className="map-box">
         {noLivePositions && (
           <div className="map-warn" role="status">
-            <b>Live positions aren’t loading right now.</b> A friend’s flight may be in progress, but we can’t see where the plane is. Planes
-            shown are estimated from the flight schedule until live data comes back.
+            <b>Live positions aren’t loading right now.</b> A friend’s flight may be in progress, but we can’t see where the plane is.
+            Planes will appear here as soon as live data comes back.
           </div>
         )}
         <FlightMap routes={routes} planes={planes} selectedPlane={selected} onSelectPlane={setSelected} airports={airports} onSelectAirport={pickAirport} focus={focus} />
@@ -279,15 +281,11 @@ export function MapView() {
               {sel.live ? (
                 <>
                   <span><b>{Math.round(sel.live.progress * 100)}%</b> there</span>
-                  {sel.live.lands && <span>lands <b>{sel.live.lands}</b></span>}
-                  {sel.live.real ? (
-                    <span className="muted">
-                      {[sel.live.real.altFt != null && `${sel.live.real.altFt.toLocaleString()} ft`, sel.live.real.speedKt != null && `${sel.live.real.speedKt} kt`].filter(Boolean).join(" · ")}
-                      {sel.live.real.seenAt ? <>{" · "}<Ago iso={sel.live.real.seenAt} /></> : " · live position"}
-                    </span>
-                  ) : (
-                    <span className="muted">{trackingDown ? "live position unavailable · estimated from the schedule" : "by schedule"}</span>
-                  )}
+                  {sel.live.lands && <span>scheduled arrival <b>{sel.live.lands}</b></span>}
+                  <span className="muted">
+                    {[sel.live.real?.altFt != null && `${sel.live.real.altFt.toLocaleString()} ft`, sel.live.real?.speedKt != null && `${sel.live.real.speedKt} kt`].filter(Boolean).join(" · ")}
+                    {sel.live.real?.seenAt ? <>{" · "}<Ago iso={sel.live.real.seenAt} /></> : " · live position"}
+                  </span>
                 </>
               ) : (
                 <span className="muted">Completed flight</span>

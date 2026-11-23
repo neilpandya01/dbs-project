@@ -143,6 +143,30 @@ export function callsignFor(number: string | null) {
   return m && icao ? `${icao}${m[2]}` : null;
 }
 
+/**
+ * Regional airlines that fly flights sold under a mainline code ("UA 5228" is often flown by GoJet as GJS5228).
+ * The flight number stays the same, only the callsign's airline part changes, so we try each of them.
+ */
+const PARTNERS: Record<string, string[]> = {
+  UA: ["GJS", "SKW", "RPA", "ASH", "UCA"],
+  AA: ["ENY", "PDT", "RPA", "SKW", "JIA", "AWI", "ASH"],
+  DL: ["EDV", "RPA", "SKW", "GJS", "CPZ", "ASH"],
+  AS: ["QXE", "SKW"],
+  AC: ["JZA", "ROU", "ASQ"],
+  BA: ["CFE", "SHT"],
+  LH: ["CLH", "DLA"],
+  AF: ["HOP"],
+  KL: ["KLC"],
+};
+
+/** Every callsign this flight might be flying under, most likely first. [] when the airline isn't known. */
+export function callsignCandidates(number: string | null): string[] {
+  const main = callsignFor(number);
+  if (!main) return [];
+  const m = /^([A-Z0-9]{2})\s*(\d{1,4})/.exec((number ?? "").toUpperCase().trim())!;
+  return [main, ...(PARTNERS[m[1]] ?? []).map((icao) => `${icao}${m[2]}`)];
+}
+
 // ---- adsb.fi -------------------------------------------------------------------------------------
 type Raw = { hex?: string; flight?: string; r?: string; lat?: number; lon?: number; alt_baro?: number | "ground"; gs?: number; track?: number; seen_pos?: number };
 
@@ -174,9 +198,10 @@ export function parseSightings(json: unknown): Sighting[] {
  * a flight, so there's no need to check the route. Registrations and hex codes belong to the aircraft,
  * which may be on another flight, so those still have to be on the route.
  */
-export function pickSighting(list: Sighting[], from: Airport, to: Airport, state: State, trustCallsign?: string | null): Sighting | null {
+export function pickSighting(list: Sighting[], from: Airport, to: Airport, state: State, trustCallsigns?: string | string[] | null): Sighting | null {
+  const trusted = Array.isArray(trustCallsigns) ? trustCallsigns : trustCallsigns ? [trustCallsigns] : [];
   const fresh = list.filter((s) => s.ageS <= T.MAX_AGE_S);
-  const fits = fresh.filter((s) => (trustCallsign && s.callsign === trustCallsign) || (s.onGround ? miles(s, from) < 30 || miles(s, to) < 30 : onRoute(s, from, to, s.trackDeg)));
+  const fits = fresh.filter((s) => (trusted.length > 0 && trusted.includes(s.callsign)) || (s.onGround ? miles(s, from) < 30 || miles(s, to) < 30 : onRoute(s, from, to, s.trackDeg)));
   const pool = state.stage === "waiting" || !state.hex ? fits : fits.filter((s) => s.hex === state.hex);
   return pool.sort((a, b) => miles(a, from) - miles(b, from))[0] ?? null;
 }

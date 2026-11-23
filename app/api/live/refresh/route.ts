@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { T, callsignFor, flightTimes, parseSightings, pickSighting, step, type FlightRow, type State } from "../../../../supabase/functions/_shared/tracker.ts";
+import { T, callsignCandidates, flightTimes, parseSightings, pickSighting, step, type FlightRow, type Sighting, type State } from "../../../../supabase/functions/_shared/tracker.ts";
 
 /**
  * "Where is my friends' plane right now?", answered on the spot. The Map calls this when it opens, so a friend
@@ -61,24 +61,38 @@ export async function POST() {
     if (r?.stage === "landed") { notes.push({ flight: label, result: "already landed" }); continue; }
     if (r?.polled_at && now - Date.parse(r.polled_at) < RECENT_MS) { notes.push({ flight: label, result: "checked a moment ago" }); continue; }
 
-    const callsign = callsignFor(f.flight_number);
+    const callsigns = callsignCandidates(f.flight_number);
     const hex = r?.hex as string | undefined;
     const reg = f.registration?.toUpperCase();
-    const url = hex ? `${ADSB}/hex/${hex}` : reg ? `${ADSB}/registration/${encodeURIComponent(reg)}` : callsign ? `${ADSB}/callsign/${encodeURIComponent(callsign)}` : null;
-    if (!url) { notes.push({ flight: label, result: "no registration and unknown airline code: can't find the aircraft" }); continue; }
+    // what to ask adsb.fi, in order, until something answers: the aircraft's hex code, then its registration,
+    // then every callsign the flight might fly under (the airline's own and its regional partners)
+    const attempts: { url: string; match: (s: Sighting) => boolean }[] = [];
+    if (hex) attempts.push({ url: `${ADSB}/hex/${hex}`, match: (s) => s.hex === hex });
+    else {
+      if (reg) attempts.push({ url: `${ADSB}/registration/${encodeURIComponent(reg)}`, match: (s) => s.reg === reg });
+      if (callsigns.length) attempts.push({ url: `${ADSB}/callsign/${callsigns.map(encodeURIComponent).join(",")}`, match: (s) => callsigns.includes(s.callsign) });
+    }
+    if (attempts.length === 0) { notes.push({ flight: label, result: "no registration and unknown airline code: can't find the aircraft" }); continue; }
 
-    if (checked > 0) await new Promise((res) => setTimeout(res, 1100)); // adsb.fi allows about one request a second
     checked++;
-    let res: Response;
-    try { res = await fetch(url, { headers: { "User-Agent": "Wingmates-live-tracker" }, signal: AbortSignal.timeout(8000) }); }
-    catch { failed++; notes.push({ flight: label, result: "adsb.fi didn't answer" }); continue; }
-    if (!res.ok) { failed++; notes.push({ flight: label, result: `adsb.fi said ${res.status}` }); continue; }
+    let sightings: Sighting[] = [];
+    let answered = false;
+    for (const at of attempts) {
+      await new Promise((res) => setTimeout(res, 1100)); // adsb.fi allows about one request a second
+      try {
+        const res = await fetch(at.url, { headers: { "User-Agent": "Wingmates-live-tracker" }, signal: AbortSignal.timeout(8000) });
+        if (!res.ok) continue;
+        answered = true;
+        sightings = parseSightings(await res.json()).filter(at.match);
+        if (sightings.length) break;
+      } catch { /* try the next way of finding it */ }
+    }
+    if (!answered) { failed++; notes.push({ flight: label, result: "adsb.fi didn't answer" }); continue; }
 
-    const sightings = parseSightings(await res.json());
     const before: State = r
       ? { stage: r.stage, hex: r.hex, lat: r.lat, lon: r.lon, altFt: r.alt_ft, speedKt: r.speed_kt, trackDeg: r.track_deg, onGround: r.on_ground, takeoffAt: r.takeoff_at ? Date.parse(r.takeoff_at) : null, seenAt: r.seen_at ? Date.parse(r.seen_at) : null }
       : { stage: "waiting" };
-    const hit = pickSighting(sightings, from, to, before, callsign);
+    const hit = pickSighting(sightings, from, to, before, callsigns);
     const after = step(before, hit, to, Date.now());
     await db.from("live_positions").upsert({
       flight_id: f.id, user_id: f.user_id, stage: after.stage, hex: after.hex ?? null, lat: after.lat ?? null, lon: after.lon ?? null,

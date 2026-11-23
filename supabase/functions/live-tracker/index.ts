@@ -8,7 +8,7 @@
 // With few flights each one is refreshed often; with many, the wait between refreshes grows on its own.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
-  T, callsignFor, flightWindow, inWindow, parseSightings, pickSighting, step,
+  T, callsignCandidates, flightWindow, inWindow, parseSightings, pickSighting, step,
   type Airport, type FlightRow, type Sighting, type State,
 } from "../_shared/tracker.ts";
 
@@ -24,7 +24,10 @@ type Item = {
   t: { dep: number; arr: number };
   state: State;
   polledAt: number;
-  callsign: string | null;
+  /** every callsign the flight might fly under (the airline's own, then regional partners) */
+  callsigns: string[];
+  /** the registration was tried this turn and found nothing: try the callsigns next */
+  regMissed?: boolean;
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, Math.max(0, ms)));
@@ -88,7 +91,7 @@ Deno.serve(async (req) => {
       ? { stage: r.stage, hex: r.hex, lat: r.lat, lon: r.lon, altFt: r.alt_ft, speedKt: r.speed_kt, trackDeg: r.track_deg, onGround: r.on_ground, takeoffAt: r.takeoff_at ? Date.parse(r.takeoff_at) : null, seenAt: r.seen_at ? Date.parse(r.seen_at) : null }
       : { stage: "waiting" };
     if (!inWindow(startedAt, t, state.stage)) continue;
-    items.push({ f, from, to, t, state, polledAt: r?.polled_at ? Date.parse(r.polled_at) : 0, callsign: callsignFor(f.flight_number) });
+    items.push({ f, from, to, t, state, polledAt: r?.polled_at ? Date.parse(r.polled_at) : 0, callsigns: callsignCandidates(f.flight_number) });
   }
 
   // ---- 3. the round-robin ------------------------------------------------------------------------------
@@ -108,19 +111,28 @@ Deno.serve(async (req) => {
 
     // one request per turn: the group that includes the item polled longest ago
     const first = due[0];
-    let url: string, group: Item[], match: (s: Sighting, i: Item) => boolean;
+    let url: string, group: Item[], match: (s: Sighting, i: Item) => boolean, byRegistration = false;
     if (first.state.hex) {
       group = due.filter((i) => i.state.hex).slice(0, BATCH);
       url = `${ADSB}/hex/${group.map((i) => i.state.hex).join(",")}`;
       match = (s, i) => s.hex === i.state.hex;
-    } else if (first.f.registration) {
-      group = due.filter((i) => !i.state.hex && i.f.registration).slice(0, BATCH);
+    } else if (first.f.registration && !first.regMissed) {
+      group = due.filter((i) => !i.state.hex && i.f.registration && !i.regMissed).slice(0, BATCH);
       url = `${ADSB}/registration/${group.map((i) => encodeURIComponent(i.f.registration!)).join(",")}`;
       match = (s, i) => s.reg === i.f.registration!.toUpperCase();
-    } else if (first.callsign) {
-      group = [first];
-      url = `${ADSB}/callsign/${encodeURIComponent(first.callsign)}`;
-      match = (s) => s.callsign === first.callsign;
+      byRegistration = true;
+    } else if (first.callsigns.length) {
+      // several flights at once, as many as fit in one request (the callsign lookup accepts a list)
+      group = [];
+      const names: string[] = [];
+      for (const i of due) {
+        if (i.state.hex || (i.f.registration && !i.regMissed) || !i.callsigns.length) continue;
+        if (names.length + i.callsigns.length > BATCH) break;
+        group.push(i);
+        names.push(...i.callsigns);
+      }
+      url = `${ADSB}/callsign/${names.map(encodeURIComponent).join(",")}`;
+      match = (s, i) => i.callsigns.includes(s.callsign);
     } else {
       first.polledAt = now + 365 * 86_400_000; // no way to find this aircraft: leave it alone
       continue;
@@ -135,22 +147,23 @@ Deno.serve(async (req) => {
       if (res.ok) sightings = parseSightings(await res.json());
     } catch { /* timeout or network error: try again next turn */ }
 
-    for (const i of group) i.polledAt = Date.now();
-    if (sightings) {
-      const dirty = [];
-      for (const i of group) {
-        const mine = sightings.filter((s) => match(s, i));
-        const before = i.state;
-        i.state = step(before, pickSighting(mine, i.from, i.to, before, i.callsign), i.to, Date.now());
-        dirty.push({
-          flight_id: i.f.id, user_id: i.f.user_id, stage: i.state.stage, hex: i.state.hex ?? null,
-          lat: i.state.lat ?? null, lon: i.state.lon ?? null, alt_ft: i.state.altFt ?? null,
-          speed_kt: i.state.speedKt ?? null, track_deg: i.state.trackDeg ?? null, on_ground: !!i.state.onGround,
-          takeoff_at: iso(i.state.takeoffAt), seen_at: iso(i.state.seenAt), polled_at: iso(i.polledAt), updated_at: iso(Date.now()),
-        });
-      }
-      if (dirty.length) { await db.from("live_positions").upsert(dirty); updated += dirty.length; }
+    const dirty = [];
+    for (const i of group) {
+      const mine = sightings ? sightings.filter((s) => match(s, i)) : [];
+      // the registration found nothing: ask for its callsigns right away instead of waiting for the next poll
+      if (byRegistration && sightings && mine.length === 0 && i.callsigns.length) { i.regMissed = true; continue; }
+      i.regMissed = false;
+      i.polledAt = Date.now();
+      if (!sightings) continue;
+      i.state = step(i.state, pickSighting(mine, i.from, i.to, i.state, i.callsigns), i.to, Date.now());
+      dirty.push({
+        flight_id: i.f.id, user_id: i.f.user_id, stage: i.state.stage, hex: i.state.hex ?? null,
+        lat: i.state.lat ?? null, lon: i.state.lon ?? null, alt_ft: i.state.altFt ?? null,
+        speed_kt: i.state.speedKt ?? null, track_deg: i.state.trackDeg ?? null, on_ground: !!i.state.onGround,
+        takeoff_at: iso(i.state.takeoffAt), seen_at: iso(i.state.seenAt), polled_at: iso(i.polledAt), updated_at: iso(Date.now()),
+      });
     }
+    if (dirty.length) { await db.from("live_positions").upsert(dirty); updated += dirty.length; }
     await sleep(T.SPACING_MS - (Date.now() - began));
   }
 
@@ -159,6 +172,6 @@ Deno.serve(async (req) => {
 
   return Response.json({
     watchers: watching.length, tracked: items.length, requests, updated, stopped,
-    flights: items.slice(0, 10).map((i) => ({ flight: i.f.flight_number ?? `${i.f.from_airport}-${i.f.to_airport}`, stage: i.state.stage, how: i.state.hex ? "hex" : i.f.registration ? "registration" : i.callsign ? `callsign ${i.callsign}` : "none" })),
+    flights: items.slice(0, 10).map((i) => ({ flight: i.f.flight_number ?? `${i.f.from_airport}-${i.f.to_airport}`, stage: i.state.stage, how: i.state.hex ? "hex" : i.f.registration ? "registration" : i.callsigns.length ? `callsign ${i.callsigns[0]}` : "none" })),
   });
 });
