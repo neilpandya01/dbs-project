@@ -43,6 +43,7 @@ type Item = {
   to: string;
   color: string;
   owner: string;
+  photo?: string | null;
   /** On its way right now: how far along (by schedule) and when it lands. */
   live?: { progress: number; lands?: string; real?: LivePos };
   miles: number;
@@ -54,7 +55,7 @@ const MINE_COLOR = "#1f7ff0";
 const searchText = (f: Flight, who: string) =>
   `${who} ${f.number ?? ""} ${f.from} ${f.to} ${f.airline ?? ""} ${f.aircraft ?? ""} ${AIRPORTS[f.from]?.city ?? ""} ${AIRPORTS[f.to]?.city ?? ""}`.toLowerCase();
 
-type LiveEntry = { name: string; username: string; color: string; flight: Flight; progress: number; real?: LivePos };
+type LiveEntry = { name: string; username: string; color: string; photo: string | null; flight: Flight; progress: number; real?: LivePos };
 
 /** How far along the route a real position is: the share of the (from -> here -> to) distance already flown. */
 function progressOf(f: Flight, p: LivePos) {
@@ -75,6 +76,7 @@ function buildItems(myFlights: Flight[], friendLive: LiveEntry[]): Item[] {
       to: l.flight.to,
       color: l.color,
       owner: l.name,
+      photo: l.photo,
       live: { progress: l.progress, lands: toLeg(l.flight).arrText, real: l.real },
       miles: Math.round(flightMiles(l.flight)),
       search: searchText(l.flight, `${l.name} ${l.username}`),
@@ -111,9 +113,9 @@ export function MapView() {
       friends.flatMap((fr) => {
         const fl = flightsOf(fr.id);
         const tracked = fl.find((f) => real[f.id]);
-        if (tracked) return [{ name: fr.name, username: fr.username, color: fr.color, flight: tracked, progress: progressOf(tracked, real[tracked.id]), real: real[tracked.id] }];
+        if (tracked) return [{ name: fr.name, username: fr.username, color: fr.color, photo: fr.photo, flight: tracked, progress: progressOf(tracked, real[tracked.id]), real: real[tracked.id] }];
         const l = liveFlight(fl, now);
-        return l ? [{ name: fr.name, username: fr.username, color: fr.color, flight: l.flight, progress: l.progress }] : [];
+        return l ? [{ name: fr.name, username: fr.username, color: fr.color, photo: fr.photo, flight: l.flight, progress: l.progress }] : [];
       }),
     [friends, flightsOf, now, real]
   );
@@ -148,7 +150,7 @@ export function MapView() {
   const planes: MapPlane[] = visible
     .filter((i) => i.live)
     .map((i) => ({
-      id: i.id, label: i.owner.split(" ")[0], name: i.owner, color: i.color, from: i.from, to: i.to, progress: i.live!.progress,
+      id: i.id, label: i.owner.split(" ")[0], name: i.owner, color: i.color, photo: i.photo, from: i.from, to: i.to, progress: i.live!.progress,
       pos: i.live!.real ? ([i.live!.real.lon, i.live!.real.lat] as [number, number]) : undefined,
       // point at the destination (the way the dotted line leaves the plane), not the raw track, which wobbles
       heading: i.live!.real ? bearing([i.live!.real.lon, i.live!.real.lat], AIRPORTS[i.to].lngLat) : undefined,

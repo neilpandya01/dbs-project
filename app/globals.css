@@ -178,11 +178,12 @@ h1, h2, h3, .stat .v, .bar b, .brand { font-family: var(--font-display), var(--f
 .track-item:hover { background: var(--surface-2); }
 .track-item[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
 .map-overlay { position: absolute; left: 12px; bottom: 12px; right: 12px; z-index: 5; max-width: 420px; }
-.plane-marker { display: flex; flex-direction: column; align-items: center; gap: 0; border: 0; background: transparent; padding: 0; cursor: pointer; }
-.plane-icon { width: 44px; height: 44px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.4)); transition: transform .2s; }
-.plane-tag { margin-top: -4px; background: #fff; color: var(--c, #1f7ff0); font: 700 11.5px var(--font-body), sans-serif; padding: 1px 8px; border-radius: 999px; box-shadow: 0 1px 4px rgba(0,0,0,.3); white-space: nowrap; }
+.plane-marker { position: relative; display: block; border: 0; background: transparent; padding: 0; cursor: pointer; }
+.plane-face { display: grid; place-items: center; overflow: hidden; width: 46px; height: 46px; border-radius: 50%; border: 3px solid var(--c, #1f7ff0); box-shadow: 0 0 0 2px #fff, 0 3px 8px rgba(0,0,0,.4); font: 700 15px var(--font-body), sans-serif; }
+.plane-face img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.plane-tag { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 4px; background: #fff; color: var(--c, #1f7ff0); font: 700 11.5px var(--font-body), sans-serif; padding: 1px 8px; border-radius: 999px; box-shadow: 0 1px 4px rgba(0,0,0,.3); white-space: nowrap; }
 .plane-marker.selected .plane-tag { background: var(--c); color: #fff; }
-.plane-marker.selected .plane-icon { filter: drop-shadow(0 0 6px #ffb000) drop-shadow(0 2px 3px rgba(0,0,0,.4)); }
+.plane-marker.selected .plane-face { box-shadow: 0 0 0 2px #fff, 0 0 0 5px #ffb000, 0 3px 8px rgba(0,0,0,.4); }
 .apt-label { font: 700 11px var(--font-mono), monospace; color: #fff; background: #0b2a5b; padding: 1px 6px; border-radius: 6px; border: 1.5px solid #fff; }
 .maplibregl-ctrl-attrib { font-size: 10px; }
 .sheet-handle { display: none; }

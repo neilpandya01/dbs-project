@@ -1,5 +1,5 @@
 /** Dark text on light backgrounds, white on dark ones (custom avatar colours can be anything). */
-function textOn(hex: string) {
+export function textOn(hex: string) {
   const m = /^#([0-9a-f]{6})$/i.exec(hex);
   if (!m) return "#fff";
   const [r, g, b] = [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));

@@ -6,6 +6,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { greatCircleLine, linePoint, type LngLat } from "@/lib/geo";
 import { AIRPORTS } from "@/lib/core";
 import { AIRPORT_COLORS } from "@/lib/mapColors";
+import { textOn } from "./Avatar";
 
 export type MapRoute = { id: string; from: string; to: string; color?: string; highlight?: boolean; progress?: number;
   /** The aircraft's real position. When set, the solid line runs origin -> here and the dotted line here -> destination, so a plane that has veered off the direct route is drawn where it really is. */
@@ -13,7 +14,9 @@ export type MapRoute = { id: string; from: string; to: string; color?: string; h
 export type MapAirport = { code: string; kind: "me" | "friend" | "both" };
 export type MapPlane = { id: string; label: string; name: string; color: string; from: string; to: string; progress: number;
   /** The aircraft's real position and heading, when the live tracker has one. Otherwise it sits on the route line by progress. */
-  pos?: LngLat; heading?: number };
+  pos?: LngLat; heading?: number;
+  /** The person's profile picture (an image URL or data URL). Without one, their initials are shown. */
+  photo?: string | null };
 
 maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
 
@@ -23,7 +26,6 @@ const STYLE_DARK = "https://tiles.openfreemap.org/styles/dark";
 type Feature = { type: "Feature"; properties: Record<string, string | number>; geometry: { type: "LineString"; coordinates: LngLat[] } };
 
 const STEPS = 200;
-const PLANE_PATH = "M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z";
 
 function routeLine(from: string, to: string) {
   return greatCircleLine(AIRPORTS[from].lngLat, AIRPORTS[to].lngLat, STEPS);
@@ -93,8 +95,6 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
   const map = useRef<maplibregl.Map | null>(null);
   const ready = useRef(false);
   const markers = useRef<maplibregl.Marker[]>([]);
-  /** each plane icon with the compass heading it should point, so it can be re-aimed when the map is rotated */
-  const planeIcons = useRef<{ svg: SVGSVGElement; heading: number }[]>([]);
   const latest = useRef({ routes, planes, selectedPlane, onSelectPlane, airports, onSelectAirport });
   latest.current = { routes, planes, selectedPlane, onSelectPlane, airports, onSelectAirport };
 
@@ -113,21 +113,11 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
     (m.getSource("airports") as maplibregl.GeoJSONSource | undefined)?.setData(airportsToGeoJSON(latest.current.airports));
   };
 
-  // A plane icon is drawn on the screen, so when the viewer rotates the map it must turn the opposite way to keep
-  // pointing at the same place on the ground: screen angle = heading - map bearing.
-  const aimPlanes = () => {
-    const m = map.current;
-    if (!m) return;
-    const b = m.getBearing();
-    for (const p of planeIcons.current) p.svg.style.transform = `rotate(${p.heading - b}deg)`;
-  };
-
   const drawMarkers = () => {
     const m = map.current;
     if (!m) return;
     markers.current.forEach((x) => x.remove());
     markers.current = [];
-    planeIcons.current = [];
     const { planes, selectedPlane, onSelectPlane } = latest.current;
     for (const p of planes) {
       const onLine = linePoint(routeLine(p.from, p.to), p.progress);
@@ -139,33 +129,31 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
       // Built with DOM calls and textContent, never innerHTML: the label is a person's display name,
       // which another user controls, so it must never be parsed as HTML.
       const color = /^#[0-9a-f]{3,8}$/i.test(p.color) ? p.color : "#1f7ff0";
-      const NS = "http://www.w3.org/2000/svg";
-      const svg = document.createElementNS(NS, "svg");
-      svg.setAttribute("class", "plane-icon");
-      svg.setAttribute("viewBox", "0 0 24 24");
-      svg.setAttribute("aria-hidden", "true");
-      planeIcons.current.push({ svg, heading });
-      svg.style.color = color;
-      const path = document.createElementNS(NS, "path");
-      path.setAttribute("d", PLANE_PATH);
-      path.setAttribute("fill", "currentColor");
-      path.setAttribute("stroke", "#fff");
-      path.setAttribute("stroke-width", "1.4");
-      path.setAttribute("stroke-linejoin", "round");
-      path.setAttribute("paint-order", "stroke");
-      svg.appendChild(path);
+      // The marker is the person's profile picture (or their initials on their colour), ringed in their colour.
+      const face = document.createElement("span");
+      face.className = "plane-face";
+      face.style.setProperty("--c", color);
+      face.style.background = color;
+      face.style.color = textOn(color);
+      if (p.photo && /^(data:image\/|https:\/\/)/.test(p.photo)) {
+        const img = document.createElement("img");
+        img.alt = "";
+        img.src = p.photo;
+        face.appendChild(img);
+      } else {
+        face.textContent = p.name.split(/[\s,.]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+      }
       const tag = document.createElement("span");
       tag.className = "plane-tag";
       tag.style.setProperty("--c", color);
       tag.textContent = p.label;
-      node.append(svg, tag);
+      node.append(face, tag);
       node.addEventListener("click", (e) => {
         e.stopPropagation();
         onSelectPlane?.(p.id);
       });
       markers.current.push(new maplibregl.Marker({ element: node }).setLngLat(pos as LngLat).addTo(m));
     }
-    aimPlanes();
   };
 
   // create the map once
@@ -257,7 +245,6 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
       ready.current = true;
     };
     m.on("style.load", setup);
-    m.on("rotate", aimPlanes);
     m.on("click", "airports-dot", (e) => {
       const code = e.features?.[0]?.properties?.code;
       if (code) latest.current.onSelectAirport?.(String(code));
