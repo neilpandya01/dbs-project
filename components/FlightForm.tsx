@@ -302,7 +302,7 @@ export function FlightForm({
         </div>
 
         <label>
-          <span>Notes <small>optional · description, delay or cancellation details · {notes.length}/500</small></span>
+          <span>Notes <small>optional · {notes.length}/500</small></span>
           <textarea
             className="input"
             rows={3}

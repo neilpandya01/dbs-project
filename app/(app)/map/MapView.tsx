@@ -12,12 +12,12 @@ import { useFlights } from "@/lib/flightsStore";
 import { useFriends } from "@/lib/friendsStore";
 import { liveFlight } from "@/lib/live";
 import { useLivePositions, type LivePos } from "@/lib/livePositions";
-import { distanceMiles } from "@/lib/geo";
+import { bearing, distanceMiles } from "@/lib/geo";
 
 type Mode = "all" | "mine" | "friends";
 
 /**
- * "12s ago", "3 min ago"... for a moment in time. Counts every second for the first minute, then changes once a
+ * "just now" for the first 5 seconds, then "6s ago", "7s ago"... every second until a minute, then changes once a
  * minute, exactly when the minute rolls over. Turns amber when it's getting stale.
  */
 function Ago({ iso }: { iso: string }) {
@@ -29,7 +29,7 @@ function Ago({ iso }: { iso: string }) {
     return () => clearTimeout(id);
   }, [age]);
   const s = Math.floor(age / 1000);
-  const text = s < 60 ? `${s}s ago` : s < 3600 ? `${Math.floor(s / 60)} min ago` : `${Math.floor(s / 3600)} h ago`;
+  const text = s < 6 ? "just now" : s < 60 ? `${s}s ago` : s < 3600 ? `${Math.floor(s / 60)} min ago` : `${Math.floor(s / 3600)} h ago`;
   return <span className={s > 120 ? "ago stale" : "ago"} title="When this position was last received">updated {text}</span>;
 }
 
@@ -101,7 +101,7 @@ export function MapView() {
   const { flights } = useFlights();
   const { friends, flightsOf } = useFriends();
   const now = useNow() ?? new Date();
-  const real = useLivePositions(true); // also tells the tracker you're watching, so it follows these flights
+  const { positions: real, down: trackingDown } = useLivePositions(true); // also tells the tracker you're watching, so it follows these flights
   // the map is your history: only flights that have landed
   const myFlights = useMemo(() => flights.filter((f) => isPast(f, now)), [flights, now]);
   // Friends in the air right now: a real position from the live tracker when there is one, otherwise the
@@ -150,7 +150,8 @@ export function MapView() {
     .map((i) => ({
       id: i.id, label: i.owner.split(" ")[0], name: i.owner, color: i.color, from: i.from, to: i.to, progress: i.live!.progress,
       pos: i.live!.real ? ([i.live!.real.lon, i.live!.real.lat] as [number, number]) : undefined,
-      heading: i.live!.real?.trackDeg ?? undefined,
+      // point at the destination (the way the dotted line leaves the plane), not the raw track, which wobbles
+      heading: i.live!.real ? bearing([i.live!.real.lon, i.live!.real.lat], AIRPORTS[i.to].lngLat) : undefined,
     }));
 
   // who has been to each airport
@@ -186,6 +187,8 @@ export function MapView() {
   const apt = airport ? { code: airport, info: AIRPORTS[airport], v: visits.get(airport)! } : null;
 
   const sel = ITEMS.find((i) => i.id === selected);
+  // a friend may be flying right now by schedule, but we can't show where the plane is
+  const noLivePositions = trackingDown && ITEMS.some((i) => i.kind === "friend" && i.live && !i.live.real);
   const focus = sel ? { id: sel.id, from: sel.from, to: sel.to } : null;
 
   return (
@@ -233,6 +236,12 @@ export function MapView() {
       </aside>
 
       <div className="map-box">
+        {noLivePositions && (
+          <div className="map-warn" role="status">
+            <b>Live positions aren’t loading right now.</b> A friend’s flight may be in progress, but we can’t see where the plane is. Planes
+            shown are estimated from the flight schedule until live data comes back.
+          </div>
+        )}
         <FlightMap routes={routes} planes={planes} selectedPlane={selected} onSelectPlane={setSelected} airports={airports} onSelectAirport={pickAirport} focus={focus} />
         <ul className="map-legend" aria-label="Airport legend">
           <li><i style={{ background: AIRPORT_COLORS.me }} />You</li>
@@ -275,7 +284,7 @@ export function MapView() {
                       {sel.live.real.seenAt ? <>{" · "}<Ago iso={sel.live.real.seenAt} /></> : " · live position"}
                     </span>
                   ) : (
-                    <span className="muted">by schedule</span>
+                    <span className="muted">{trackingDown ? "live position unavailable · estimated from the schedule" : "by schedule"}</span>
                   )}
                 </>
               ) : (

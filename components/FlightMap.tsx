@@ -93,6 +93,8 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
   const map = useRef<maplibregl.Map | null>(null);
   const ready = useRef(false);
   const markers = useRef<maplibregl.Marker[]>([]);
+  /** each plane icon with the compass heading it should point, so it can be re-aimed when the map is rotated */
+  const planeIcons = useRef<{ svg: SVGSVGElement; heading: number }[]>([]);
   const latest = useRef({ routes, planes, selectedPlane, onSelectPlane, airports, onSelectAirport });
   latest.current = { routes, planes, selectedPlane, onSelectPlane, airports, onSelectAirport };
 
@@ -111,11 +113,21 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
     (m.getSource("airports") as maplibregl.GeoJSONSource | undefined)?.setData(airportsToGeoJSON(latest.current.airports));
   };
 
+  // A plane icon is drawn on the screen, so when the viewer rotates the map it must turn the opposite way to keep
+  // pointing at the same place on the ground: screen angle = heading - map bearing.
+  const aimPlanes = () => {
+    const m = map.current;
+    if (!m) return;
+    const b = m.getBearing();
+    for (const p of planeIcons.current) p.svg.style.transform = `rotate(${p.heading - b}deg)`;
+  };
+
   const drawMarkers = () => {
     const m = map.current;
     if (!m) return;
     markers.current.forEach((x) => x.remove());
     markers.current = [];
+    planeIcons.current = [];
     const { planes, selectedPlane, onSelectPlane } = latest.current;
     for (const p of planes) {
       const onLine = linePoint(routeLine(p.from, p.to), p.progress);
@@ -132,7 +144,7 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
       svg.setAttribute("class", "plane-icon");
       svg.setAttribute("viewBox", "0 0 24 24");
       svg.setAttribute("aria-hidden", "true");
-      svg.style.transform = `rotate(${heading}deg)`;
+      planeIcons.current.push({ svg, heading });
       svg.style.color = color;
       const path = document.createElementNS(NS, "path");
       path.setAttribute("d", PLANE_PATH);
@@ -153,6 +165,7 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
       });
       markers.current.push(new maplibregl.Marker({ element: node }).setLngLat(pos as LngLat).addTo(m));
     }
+    aimPlanes();
   };
 
   // create the map once
@@ -244,6 +257,7 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
       ready.current = true;
     };
     m.on("style.load", setup);
+    m.on("rotate", aimPlanes);
     m.on("click", "airports-dot", (e) => {
       const code = e.features?.[0]?.properties?.code;
       if (code) latest.current.onSelectAirport?.(String(code));

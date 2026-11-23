@@ -46,7 +46,7 @@ export async function POST() {
   const known = new Map((stored ?? []).map((r) => [r.flight_id as string, r]));
 
   const notes: Note[] = [];
-  let checked = 0;
+  let checked = 0, failed = 0; // failed = adsb.fi didn't answer properly
   for (const f of flights) {
     if (checked >= MAX_FLIGHTS) break;
     const label = f.flight_number ?? `${f.from_airport}-${f.to_airport}`;
@@ -71,8 +71,8 @@ export async function POST() {
     checked++;
     let res: Response;
     try { res = await fetch(url, { headers: { "User-Agent": "Wingmates-live-tracker" }, signal: AbortSignal.timeout(8000) }); }
-    catch { notes.push({ flight: label, result: "adsb.fi didn't answer" }); continue; }
-    if (!res.ok) { notes.push({ flight: label, result: `adsb.fi said ${res.status}` }); continue; }
+    catch { failed++; notes.push({ flight: label, result: "adsb.fi didn't answer" }); continue; }
+    if (!res.ok) { failed++; notes.push({ flight: label, result: `adsb.fi said ${res.status}` }); continue; }
 
     const sightings = parseSightings(await res.json());
     const before: State = r
@@ -95,5 +95,7 @@ export async function POST() {
         : "found on the ground, not flying yet",
     });
   }
-  return NextResponse.json({ checked, notes });
+  // "down" only when every request we made failed; "unknown" when we didn't need to ask anything
+  const provider = checked === 0 ? "unknown" : failed === checked ? "down" : "ok";
+  return NextResponse.json({ checked, provider, notes });
 }

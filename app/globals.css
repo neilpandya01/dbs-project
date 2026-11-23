@@ -586,3 +586,5 @@ a.see-all:hover { text-decoration: underline; }
 .route.cancelled { text-decoration: line-through; opacity: .65; }
 .ago { white-space: nowrap; }
 .ago.stale { color: var(--warn); font-weight: 600; }
+.map-warn { position: absolute; top: 46px; left: 12px; right: 12px; max-width: 440px; z-index: 6; padding: 10px 12px; border-radius: 14px; font-size: 13.5px; line-height: 1.4; background: var(--warn-soft); color: var(--text); border: 1px solid var(--warn); box-shadow: var(--shadow); }
+@media (max-width: 860px) { .map-warn { top: 100px; } }

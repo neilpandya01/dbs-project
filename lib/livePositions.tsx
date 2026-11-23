@@ -33,6 +33,8 @@ const REFRESH_MS = 15_000; // while the map is open: ask the server to re-check 
 export function useLivePositions(watching: boolean) {
   const supabase = useSupabase();
   const [byFlight, setByFlight] = useState<Record<string, LivePos>>({});
+  /** true when the live data source isn't answering, so the page can say so instead of silently showing estimates */
+  const [down, setDown] = useState(false);
 
   useEffect(() => {
     if (!watching) return;
@@ -51,8 +53,12 @@ export function useLivePositions(watching: boolean) {
     const refresh = async () => {
       try {
         const res = await fetch("/api/live/refresh", { method: "POST" });
-        if (res.ok) console.debug("live tracking:", await res.json());
-      } catch { /* the scheduled tracker will still fill positions in */ }
+        if (res.ok) {
+          const r = (await res.json()) as { provider?: "ok" | "down" | "unknown" };
+          console.debug("live tracking:", r);
+          if (alive && r.provider && r.provider !== "unknown") setDown(r.provider === "down");
+        } else if (alive) setDown(true); // our own server failed: live positions can't load either
+      } catch { if (alive) setDown(true); }
       if (alive) await load();
     };
 
@@ -92,5 +98,5 @@ export function useLivePositions(watching: boolean) {
     };
   }, [supabase, watching]);
 
-  return byFlight;
+  return { positions: byFlight, down };
 }
