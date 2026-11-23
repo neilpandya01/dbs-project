@@ -22,12 +22,13 @@ const toPos = (r: Row): LivePos | null =>
     : null;
 
 const HEARTBEAT_MS = 30_000;
-const REFRESH_MS = 20_000; // a safety net in case a live update is missed
+const REFRESH_MS = 15_000; // while the map is open: ask the server to re-check the planes, then re-read
 
 /**
  * Real positions of airborne flights, for you and your friends (the database only returns what you're allowed to see).
  * While `watching` is true and the tab is visible, this also tells the tracker you're looking, which is what makes
- * the tracker follow these flights. Positions arrive live (Supabase Realtime) and are re-read every 20 s as a backstop.
+ * the tracker follow these flights. Positions arrive live (Supabase Realtime), and every 15 s the server is also asked to
+ * re-check the planes directly, so the map keeps moving while you sit on it even if the scheduled tracker is slow.
  */
 export function useLivePositions(watching: boolean) {
   const supabase = useSupabase();
@@ -59,7 +60,7 @@ export function useLivePositions(watching: boolean) {
     void load();
     void refresh();
     const hb = setInterval(beat, HEARTBEAT_MS);
-    const rf = setInterval(() => { if (document.visibilityState === "visible") void load(); }, REFRESH_MS);
+    const rf = setInterval(() => { if (document.visibilityState === "visible") void refresh(); }, REFRESH_MS);
     const onVisible = () => { if (document.visibilityState === "visible") { beat(); void refresh(); } };
     document.addEventListener("visibilitychange", onVisible);
 

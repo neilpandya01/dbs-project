@@ -121,6 +121,14 @@ export function flightTimes(f: FlightRow, from: Airport, to: Airport): { dep: nu
   return { dep, arr: dep + (miles(from, to) / 480 + 0.5) * 3_600_000 };
 }
 
+/**
+ * Like flightTimes, but a flight with no departure time isn't skipped: it could be in the air at any point on its
+ * date, so it gets a window covering that whole day (in UTC, with half a day either side for time zones).
+ */
+export function flightWindow(f: FlightRow, from: Airport, to: Airport): { dep: number; arr: number } {
+  return flightTimes(f, from, to) ?? { dep: Date.parse(`${f.flown_on}T00:00:00Z`) - 12 * 3_600_000, arr: Date.parse(`${f.flown_on}T23:59:59Z`) };
+}
+
 /** Is this flight worth looking at right now? Airborne flights are followed until they land. */
 export function inWindow(now: number, t: { dep: number; arr: number }, stage: Stage) {
   if (stage === "landed") return false;

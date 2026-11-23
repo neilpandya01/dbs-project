@@ -12,7 +12,7 @@ import { T, callsignFor, flightTimes, parseSightings, pickSighting, step, type F
  */
 const ADSB = "https://opendata.adsb.fi/api/v2";
 const MAX_FLIGHTS = 8;
-const RECENT_MS = 15_000; // don't ask again about a flight asked about this recently
+const RECENT_MS = 10_000; // don't ask again about a flight asked about this recently
 const AFTER_ARRIVAL_MS = 6 * 3_600_000;
 
 type Note = { flight: string; result: string };

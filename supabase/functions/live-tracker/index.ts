@@ -8,7 +8,7 @@
 // With few flights each one is refreshed often; with many, the wait between refreshes grows on its own.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
-  T, callsignFor, flightTimes, inWindow, parseSightings, pickSighting, step,
+  T, callsignFor, flightWindow, inWindow, parseSightings, pickSighting, step,
   type Airport, type FlightRow, type Sighting, type State,
 } from "../_shared/tracker.ts";
 
@@ -81,8 +81,8 @@ Deno.serve(async (req) => {
   const items: Item[] = [];
   for (const f of flights) {
     const from = airports.get(f.from_airport), to = airports.get(f.to_airport);
-    const t = from && to ? flightTimes(f, from, to) : null;
-    if (!from || !to || !t) continue;
+    if (!from || !to) continue;
+    const t = flightWindow(f, from, to);
     const r = known.get(f.id);
     const state: State = r
       ? { stage: r.stage, hex: r.hex, lat: r.lat, lon: r.lon, altFt: r.alt_ft, speedKt: r.speed_kt, trackDeg: r.track_deg, onGround: r.on_ground, takeoffAt: r.takeoff_at ? Date.parse(r.takeoff_at) : null, seenAt: r.seen_at ? Date.parse(r.seen_at) : null }
@@ -157,5 +157,8 @@ Deno.serve(async (req) => {
   // tidy: finished flights don't need to stay around
   await db.from("live_positions").delete().lt("updated_at", iso(startedAt - 2 * 86_400_000)!);
 
-  return Response.json({ watchers: watching.length, tracked: items.length, requests, updated, stopped });
+  return Response.json({
+    watchers: watching.length, tracked: items.length, requests, updated, stopped,
+    flights: items.slice(0, 10).map((i) => ({ flight: i.f.flight_number ?? `${i.f.from_airport}-${i.f.to_airport}`, stage: i.state.stage, how: i.state.hex ? "hex" : i.f.registration ? "registration" : i.callsign ? `callsign ${i.callsign}` : "none" })),
+  });
 });

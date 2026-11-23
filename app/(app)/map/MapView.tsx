@@ -16,15 +16,20 @@ import { distanceMiles } from "@/lib/geo";
 
 type Mode = "all" | "mine" | "friends";
 
-/** "12s ago", "3 min ago"... for a moment in time, ticking every few seconds. Turns amber when it's getting stale. */
+/**
+ * "12s ago", "3 min ago"... for a moment in time. Counts every second for the first minute, then changes once a
+ * minute, exactly when the minute rolls over. Turns amber when it's getting stale.
+ */
 function Ago({ iso }: { iso: string }) {
   const [now, setNow] = useState(() => Date.now());
+  const age = Math.max(0, now - Date.parse(iso));
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 5000);
-    return () => clearInterval(id);
-  }, []);
-  const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000));
-  const text = s < 10 ? "just now" : s < 60 ? `${s}s ago` : s < 3600 ? `${Math.floor(s / 60)} min ago` : `${Math.floor(s / 3600)} h ago`;
+    const wait = age < 60_000 ? 1000 : 60_000 - (age % 60_000) + 50;
+    const id = setTimeout(() => setNow(Date.now()), wait);
+    return () => clearTimeout(id);
+  }, [age]);
+  const s = Math.floor(age / 1000);
+  const text = s < 60 ? `${s}s ago` : s < 3600 ? `${Math.floor(s / 60)} min ago` : `${Math.floor(s / 3600)} h ago`;
   return <span className={s > 120 ? "ago stale" : "ago"} title="When this position was last received">updated {text}</span>;
 }
 
