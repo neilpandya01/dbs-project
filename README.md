@@ -37,6 +37,20 @@ I asked 3 friends what they thought of my app. They mostly caught bugs and incon
 quickly fix using multiple perspectives, less so constructive feedback. For example, they mentioned having 
 a "remove user" button more easily accessible. 
 
+## Live tracking setup
+
+Friends' flights are followed by an edge function (`supabase/functions/live-tracker`) that Supabase cron runs every
+minute. It only tracks flights of friends of people who have the Map open (the map sends a heartbeat). A flight is
+**waiting** from 15 minutes before departure (checked every 3 minutes), **airborne** once adsb.fi sees it flying
+(a request every 2 seconds, round-robin, so more flights means longer between updates for each), and **landed** once
+it's on the ground or very low near its destination. Positions are written to `live_positions` and pushed to the map
+with Supabase Realtime. One-time setup:
+
+1. Run `supabase/migrations/20261122000000_live_tracking.sql` in the SQL Editor.
+2. Turn on the `pg_cron` and `pg_net` extensions (Database → Extensions).
+3. `supabase functions deploy live-tracker --no-verify-jwt`, then `supabase secrets set CRON_SECRET=<long random string>`.
+4. Fill in the two placeholders in `supabase/cron/live_tracker_schedule.sql` and run it in the SQL Editor.
+
 ## v2 plan
 
 **Address any feedback provided**

@@ -11,6 +11,8 @@ import { fmtDate, isPast, toLeg } from "@/lib/itinerary";
 import { useFlights } from "@/lib/flightsStore";
 import { useFriends } from "@/lib/friendsStore";
 import { liveFlight } from "@/lib/live";
+import { useLivePositions, type LivePos } from "@/lib/livePositions";
+import { distanceMiles } from "@/lib/geo";
 
 type Mode = "all" | "mine" | "friends";
 
@@ -25,7 +27,7 @@ type Item = {
   color: string;
   owner: string;
   /** On its way right now: how far along (by schedule) and when it lands. */
-  live?: { progress: number; lands?: string };
+  live?: { progress: number; lands?: string; real?: LivePos };
   miles: number;
   search: string;
 };
@@ -35,7 +37,16 @@ const MINE_COLOR = "#1f7ff0";
 const searchText = (f: Flight, who: string) =>
   `${who} ${f.number ?? ""} ${f.from} ${f.to} ${f.airline ?? ""} ${f.aircraft ?? ""} ${AIRPORTS[f.from]?.city ?? ""} ${AIRPORTS[f.to]?.city ?? ""}`.toLowerCase();
 
-function buildItems(myFlights: Flight[], friendLive: { name: string; username: string; color: string; flight: Flight; progress: number }[]): Item[] {
+type LiveEntry = { name: string; username: string; color: string; flight: Flight; progress: number; real?: LivePos };
+
+/** How far along the route a real position is: the share of the (from -> here -> to) distance already flown. */
+function progressOf(f: Flight, p: LivePos) {
+  const here: [number, number] = [p.lon, p.lat];
+  const a = distanceMiles(AIRPORTS[f.from].lngLat, here), b = distanceMiles(here, AIRPORTS[f.to].lngLat);
+  return a + b > 0 ? Math.min(0.98, Math.max(0.02, a / (a + b))) : 0.5;
+}
+
+function buildItems(myFlights: Flight[], friendLive: LiveEntry[]): Item[] {
   return [
     ...friendLive.map<Item>((l) => ({
       id: l.flight.id,
@@ -47,7 +58,7 @@ function buildItems(myFlights: Flight[], friendLive: { name: string; username: s
       to: l.flight.to,
       color: l.color,
       owner: l.name,
-      live: { progress: l.progress, lands: toLeg(l.flight).arrText },
+      live: { progress: l.progress, lands: toLeg(l.flight).arrText, real: l.real },
       miles: Math.round(flightMiles(l.flight)),
       search: searchText(l.flight, `${l.name} ${l.username}`),
     })),
@@ -73,16 +84,21 @@ export function MapView() {
   const { flights } = useFlights();
   const { friends, flightsOf } = useFriends();
   const now = useNow() ?? new Date();
+  const real = useLivePositions(true); // also tells the tracker you're watching, so it follows these flights
   // the map is your history: only flights that have landed
   const myFlights = useMemo(() => flights.filter((f) => isPast(f, now)), [flights, now]);
-  // friends who are in the air right now (by their flight's scheduled departure and arrival)
+  // Friends in the air right now: a real position from the live tracker when there is one, otherwise the
+  // scheduled-time estimate (a plane that hasn't been picked up yet still shows, just by schedule).
   const friendLive = useMemo(
     () =>
       friends.flatMap((fr) => {
-        const l = liveFlight(flightsOf(fr.id), now);
+        const fl = flightsOf(fr.id);
+        const tracked = fl.find((f) => real[f.id]);
+        if (tracked) return [{ name: fr.name, username: fr.username, color: fr.color, flight: tracked, progress: progressOf(tracked, real[tracked.id]), real: real[tracked.id] }];
+        const l = liveFlight(fl, now);
         return l ? [{ name: fr.name, username: fr.username, color: fr.color, flight: l.flight, progress: l.progress }] : [];
       }),
-    [friends, flightsOf, now]
+    [friends, flightsOf, now, real]
   );
   const ITEMS = useMemo(() => buildItems(myFlights, friendLive), [myFlights, friendLive]);
   const [mode, setMode] = useState<Mode>("all");
@@ -113,7 +129,11 @@ export function MapView() {
   }));
   const planes: MapPlane[] = visible
     .filter((i) => i.live)
-    .map((i) => ({ id: i.id, label: i.owner.split(" ")[0], name: i.owner, color: i.color, from: i.from, to: i.to, progress: i.live!.progress }));
+    .map((i) => ({
+      id: i.id, label: i.owner.split(" ")[0], name: i.owner, color: i.color, from: i.from, to: i.to, progress: i.live!.progress,
+      pos: i.live!.real ? ([i.live!.real.lon, i.live!.real.lat] as [number, number]) : undefined,
+      heading: i.live!.real?.trackDeg ?? undefined,
+    }));
 
   // who has been to each airport
   const visits = useMemo(() => {
@@ -230,7 +250,13 @@ export function MapView() {
                 <>
                   <span><b>{Math.round(sel.live.progress * 100)}%</b> there</span>
                   {sel.live.lands && <span>lands <b>{sel.live.lands}</b></span>}
-                  <span className="muted">by schedule</span>
+                  {sel.live.real ? (
+                    <span className="muted">
+                      {[sel.live.real.altFt != null && `${sel.live.real.altFt.toLocaleString()} ft`, sel.live.real.speedKt != null && `${sel.live.real.speedKt} kt`, "live position"].filter(Boolean).join(" · ")}
+                    </span>
+                  ) : (
+                    <span className="muted">by schedule</span>
+                  )}
                 </>
               ) : (
                 <span className="muted">Completed flight</span>

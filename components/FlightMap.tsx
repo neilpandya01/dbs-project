@@ -9,7 +9,9 @@ import { AIRPORT_COLORS } from "@/lib/mapColors";
 
 export type MapRoute = { id: string; from: string; to: string; color?: string; highlight?: boolean; progress?: number };
 export type MapAirport = { code: string; kind: "me" | "friend" | "both" };
-export type MapPlane = { id: string; label: string; name: string; color: string; from: string; to: string; progress: number };
+export type MapPlane = { id: string; label: string; name: string; color: string; from: string; to: string; progress: number;
+  /** The aircraft's real position and heading, when the live tracker has one. Otherwise it sits on the route line by progress. */
+  pos?: LngLat; heading?: number };
 
 maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
 
@@ -109,7 +111,9 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
     markers.current = [];
     const { planes, selectedPlane, onSelectPlane } = latest.current;
     for (const p of planes) {
-      const { pos, heading } = linePoint(routeLine(p.from, p.to), p.progress);
+      const onLine = linePoint(routeLine(p.from, p.to), p.progress);
+      const pos = p.pos ?? onLine.pos;
+      const heading = p.heading ?? onLine.heading;
       const node = document.createElement("button");
       node.className = "plane-marker" + (p.id === selectedPlane ? " selected" : "");
       node.setAttribute("aria-label", `${p.name} in flight, heading ${Math.round(heading)} degrees`);
