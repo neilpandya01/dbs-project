@@ -5,7 +5,8 @@ import { AirportPicker } from "./AirportPicker";
 import { Sheet } from "./Sheet";
 import { AIRPORTS, airlineFor, type Flight } from "@/lib/core";
 import { fetchLookupStatus, formatFlightNumber, lookupFlight, lookupFlightNumber } from "@/lib/flightLookup";
-import { AIRCRAFT_TYPES, canonicalAircraft } from "@/lib/aircraft";
+import { AircraftPicker } from "./AircraftPicker";
+import { canonicalAircraft } from "@/lib/aircraft";
 import { toLeg } from "@/lib/itinerary";
 import type { LookupFlight } from "@/lib/lookupTypes";
 
@@ -285,11 +286,7 @@ export function FlightForm({
           </label>
         </div>
 
-        <label>
-          <span>Aircraft <small>optional</small></span>
-          <input className="input" list="aircraft-types" value={aircraft} onChange={(e) => setAircraft(e.target.value)} onBlur={() => setAircraft((a) => canonicalAircraft(a) ?? "")} maxLength={60} placeholder="Start typing, like 737, A320 or E175" autoComplete="off" />
-          <datalist id="aircraft-types">{AIRCRAFT_TYPES.map((a) => <option key={a.name} value={a.name} label={`${a.name} · ${a.icao}`} />)}</datalist>
-        </label>
+        <AircraftPicker value={aircraft} onPick={setAircraft} />
 
         <div className="form-row">
           <label>
