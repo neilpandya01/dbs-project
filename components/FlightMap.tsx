@@ -7,7 +7,9 @@ import { greatCircleLine, linePoint, type LngLat } from "@/lib/geo";
 import { AIRPORTS } from "@/lib/core";
 import { AIRPORT_COLORS } from "@/lib/mapColors";
 
-export type MapRoute = { id: string; from: string; to: string; color?: string; highlight?: boolean; progress?: number };
+export type MapRoute = { id: string; from: string; to: string; color?: string; highlight?: boolean; progress?: number;
+  /** The aircraft's real position. When set, the solid line runs origin -> here and the dotted line here -> destination, so a plane that has veered off the direct route is drawn where it really is. */
+  pos?: LngLat };
 export type MapAirport = { code: string; kind: "me" | "friend" | "both" };
 export type MapPlane = { id: string; label: string; name: string; color: string; from: string; to: string; progress: number;
   /** The aircraft's real position and heading, when the live tracker has one. Otherwise it sits on the route line by progress. */
@@ -32,7 +34,11 @@ function routesToGeoJSON(routes: MapRoute[]) {
   for (const r of routes) {
     const line = routeLine(r.from, r.to);
     const base = { id: r.id, color: r.color ?? "#1f7ff0", highlight: r.highlight ? 1 : 0 };
-    if (r.progress == null) {
+    if (r.pos) {
+      const a = AIRPORTS[r.from].lngLat, b = AIRPORTS[r.to].lngLat;
+      features.push({ type: "Feature", properties: { ...base, part: "flown", arrows: 1 }, geometry: { type: "LineString", coordinates: greatCircleLine(a, r.pos, 80) } });
+      features.push({ type: "Feature", properties: { ...base, part: "rest", arrows: 0 }, geometry: { type: "LineString", coordinates: greatCircleLine(r.pos, b, 80) } });
+    } else if (r.progress == null) {
       features.push({ type: "Feature", properties: { ...base, part: "all", arrows: r.highlight ? 1 : 0 }, geometry: { type: "LineString", coordinates: line } });
     } else {
       const i = Math.max(1, Math.min(STEPS - 1, Math.round(r.progress * STEPS)));
@@ -76,7 +82,8 @@ type Props = {
   onSelectPlane?: (id: string) => void;
   airports?: MapAirport[];
   onSelectAirport?: (code: string) => void;
-  focus?: { from: string; to: string } | null;
+  /** Zoom to this route when `id` changes (not on every re-render, so the viewer's own zoom is left alone). */
+  focus?: { id: string; from: string; to: string } | null;
   interactive?: boolean;
   className?: string;
 };
@@ -282,7 +289,8 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
     const bounds = line.reduce((bb, pt) => bb.extend(pt), new maplibregl.LngLatBounds(line[0], line[0]));
     const mobile = window.innerWidth <= 860;
     m.fitBounds(bounds, { padding: { top: 70, bottom: mobile ? 190 : 150, left: 50, right: 50 }, duration: 800, maxZoom: 5 });
-  }, [focus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus?.id]);
 
   return <div ref={el} className={className ?? "map-canvas"} role="application" aria-label="Flight map" />;
 }

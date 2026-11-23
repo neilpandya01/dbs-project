@@ -16,6 +16,18 @@ import { distanceMiles } from "@/lib/geo";
 
 type Mode = "all" | "mine" | "friends";
 
+/** "12s ago", "3 min ago"... for a moment in time, ticking every few seconds. Turns amber when it's getting stale. */
+function Ago({ iso }: { iso: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(id);
+  }, []);
+  const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000));
+  const text = s < 10 ? "just now" : s < 60 ? `${s}s ago` : s < 3600 ? `${Math.floor(s / 60)} min ago` : `${Math.floor(s / 3600)} h ago`;
+  return <span className={s > 120 ? "ago stale" : "ago"} title="When this position was last received">updated {text}</span>;
+}
+
 type Item = {
   id: string;
   kind: "mine" | "friend";
@@ -126,6 +138,7 @@ export function MapView() {
     color: i.color,
     highlight: i.id === selected,
     progress: i.live?.progress,
+    pos: i.live?.real ? ([i.live.real.lon, i.live.real.lat] as [number, number]) : undefined,
   }));
   const planes: MapPlane[] = visible
     .filter((i) => i.live)
@@ -168,7 +181,7 @@ export function MapView() {
   const apt = airport ? { code: airport, info: AIRPORTS[airport], v: visits.get(airport)! } : null;
 
   const sel = ITEMS.find((i) => i.id === selected);
-  const focus = sel ? { from: sel.from, to: sel.to } : null;
+  const focus = sel ? { id: sel.id, from: sel.from, to: sel.to } : null;
 
   return (
     <div className="map-layout">
@@ -204,6 +217,7 @@ export function MapView() {
                   <b className="mono" style={{ fontSize: 14 }}>{i.title}</b>
                   <span className="muted" style={{ display: "block", fontSize: 12.5 }}>
                     {i.owner === "You" ? "" : `${i.owner} · `}{i.sub}
+                    {i.live?.real?.seenAt && <> · <Ago iso={i.live.real.seenAt} /></>}
                   </span>
                 </span>
                 {i.live && <span className="badge good"><span className="dot pulse" />Live</span>}
@@ -252,7 +266,8 @@ export function MapView() {
                   {sel.live.lands && <span>lands <b>{sel.live.lands}</b></span>}
                   {sel.live.real ? (
                     <span className="muted">
-                      {[sel.live.real.altFt != null && `${sel.live.real.altFt.toLocaleString()} ft`, sel.live.real.speedKt != null && `${sel.live.real.speedKt} kt`, "live position"].filter(Boolean).join(" · ")}
+                      {[sel.live.real.altFt != null && `${sel.live.real.altFt.toLocaleString()} ft`, sel.live.real.speedKt != null && `${sel.live.real.speedKt} kt`].filter(Boolean).join(" · ")}
+                      {sel.live.real.seenAt ? <>{" · "}<Ago iso={sel.live.real.seenAt} /></> : " · live position"}
                     </span>
                   ) : (
                     <span className="muted">by schedule</span>

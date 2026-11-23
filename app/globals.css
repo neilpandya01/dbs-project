@@ -584,3 +584,5 @@ a.see-all:hover { text-decoration: underline; }
 .suggest-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; text-decoration: none; }
 .status-box { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2); }
 .route.cancelled { text-decoration: line-through; opacity: .65; }
+.ago { white-space: nowrap; }
+.ago.stale { color: var(--warn); font-weight: 600; }
