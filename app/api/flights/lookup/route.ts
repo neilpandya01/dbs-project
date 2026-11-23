@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { canonicalAircraft } from "@/lib/aircraft";
 import type { LookupFlight, LookupResult, LookupStatus } from "@/lib/lookupTypes";
 
 /**
@@ -110,7 +111,7 @@ function normalize(raw: unknown): LookupFlight[] {
     out.push({
       number: String(f.number ?? "").slice(0, 12),
       airline: f.airline?.name?.slice(0, 60),
-      aircraft: f.aircraft?.model?.slice(0, 60),
+      aircraft: canonicalAircraft(f.aircraft?.model?.slice(0, 60)),
       registration: f.aircraft?.reg?.slice(0, 12),
       from, to,
       fromCity: f.departure?.airport?.municipalityName,

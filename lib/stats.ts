@@ -1,3 +1,4 @@
+import { canonicalAircraft, manufacturerOf } from "./aircraft";
 import { AIRPORTS, flagOf, flightHours, flightMiles, type Flight } from "./core";
 
 const EARTH_MILES = 24_901;
@@ -14,7 +15,7 @@ function tally(flights: Flight[], keys: (f: Flight) => (string | undefined)[]) {
 }
 
 const monthLabel = (iso: string) => `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
-const manufacturer = (type: string) => (/^boeing/i.test(type) ? "Boeing" : /^airbus/i.test(type) ? "Airbus" : /^embraer/i.test(type) ? "Embraer" : "Other");
+const manufacturer = manufacturerOf;
 
 /**
  * Everything the stat tiles and their detail sheets need. Each tile owns one theme so
@@ -62,7 +63,7 @@ export function buildStats(flights: Flight[]) {
   const airlineTotal = airlines.reduce((s, a) => s + a.count, 0);
 
   // --- aircraft
-  const types = tally(flights, (f) => [f.aircraft]);
+  const types = tally(flights, (f) => [canonicalAircraft(f.aircraft)]);
   const makers = tally(flights, (f) => [f.aircraft && manufacturer(f.aircraft)]);
 
   // --- routes: every direction is its own one-way route, so a round trip is two routes

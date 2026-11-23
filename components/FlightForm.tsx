@@ -5,14 +5,9 @@ import { AirportPicker } from "./AirportPicker";
 import { Sheet } from "./Sheet";
 import { AIRPORTS, airlineFor, type Flight } from "@/lib/core";
 import { fetchLookupStatus, formatFlightNumber, lookupFlight, lookupFlightNumber } from "@/lib/flightLookup";
+import { AIRCRAFT_TYPES, canonicalAircraft } from "@/lib/aircraft";
 import { toLeg } from "@/lib/itinerary";
 import type { LookupFlight } from "@/lib/lookupTypes";
-
-const AIRCRAFT = [
-  "Airbus A220-300", "Airbus A320", "Airbus A321", "Airbus A330-900", "Airbus A350-900",
-  "Boeing 737-800", "Boeing 737 MAX 8", "Boeing 737 MAX 9", "Boeing 747-8", "Boeing 767-300ER",
-  "Boeing 777-300ER", "Boeing 787-8", "Boeing 787-9", "Embraer E175",
-];
 
 const localToday = () => {
   const d = new Date();
@@ -109,7 +104,7 @@ export function FlightForm({
     if (hit) {
       setFrom(hit.from);
       setTo(hit.to);
-      if (!aircraft && hit.aircraft) setAircraft(hit.aircraft);
+      if (!aircraft && hit.aircraft) setAircraft(canonicalAircraft(hit.aircraft) ?? "");
       setHint(`You’ve logged ${v} before: ${hit.from} → ${hit.to}. Check it looks right.`);
     } else {
       setHint(null);
@@ -120,7 +115,7 @@ export function FlightForm({
   const apply = (f: LookupFlight) => {
     setNumber(formatFlightNumber(f.number));
     setAirline(f.airline ?? airlineFor(f.number) ?? "");
-    setAircraft(f.aircraft ?? "");
+    setAircraft(canonicalAircraft(f.aircraft) ?? "");
     setRegistration(f.registration ?? "");
     setTime(f.depTime ? to24(f.depTime) : "");
     setArrTime(f.arrTime ? to24(f.arrTime) : "");
@@ -292,8 +287,8 @@ export function FlightForm({
 
         <label>
           <span>Aircraft <small>optional</small></span>
-          <input className="input" list="aircraft-types" value={aircraft} onChange={(e) => setAircraft(e.target.value)} maxLength={60} />
-          <datalist id="aircraft-types">{AIRCRAFT.map((a) => <option key={a} value={a} />)}</datalist>
+          <input className="input" list="aircraft-types" value={aircraft} onChange={(e) => setAircraft(e.target.value)} onBlur={() => setAircraft((a) => canonicalAircraft(a) ?? "")} maxLength={60} placeholder="Start typing, like 737, A320 or E175" autoComplete="off" />
+          <datalist id="aircraft-types">{AIRCRAFT_TYPES.map((a) => <option key={a.name} value={a.name} label={`${a.name} · ${a.icao}`} />)}</datalist>
         </label>
 
         <div className="form-row">
