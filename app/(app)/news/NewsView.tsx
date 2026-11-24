@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AirportPicker } from "@/components/AirportPicker";
 import { Avatar } from "@/components/Avatar";
 import { CommentItem } from "@/components/CommentItem";
+import { ConfirmDelete } from "@/components/ConfirmDelete";
 import { Photos } from "@/components/Photos";
 import { ThreadForm } from "@/components/ThreadForm";
 import { UserLink } from "@/components/UserLink";
@@ -43,6 +44,7 @@ function ThreadCard({ t, now, mine, friend, voted, flagged, onVote, onFlag, onEd
   t: Thread; now: number; mine: boolean; friend: boolean; voted: boolean; flagged: boolean;
   onVote: () => void; onFlag: () => void; onEdit: () => void; onDelete: () => void; onPickAirport: (code: string) => void;
 }) {
+  const [confirming, setConfirming] = useState(false);
   return (
     <article className={`post${mine ? " mine" : ""}`}>
       <UserLink username={t.author_username}><Avatar name={t.author_name || t.author_username} color={colorFor(t.author_username)} size={38} /></UserLink>
@@ -66,12 +68,15 @@ function ThreadCard({ t, now, mine, friend, voted, flagged, onVote, onFlag, onEd
           {mine ? (
             <>
               <button className="pill ghost" onClick={onEdit}>Edit</button>
-              <button className="pill ghost" onClick={onDelete}>Delete</button>
+              <button className="pill ghost" onClick={() => setConfirming(true)} aria-pressed={confirming}>Delete</button>
             </>
           ) : (
             <button className="pill ghost" aria-pressed={flagged} onClick={onFlag} disabled={flagged}>{flagged ? "Flagged" : "Flag"}</button>
           )}
         </div>
+        {confirming && (
+          <ConfirmDelete title="Delete this thread?" detail="Its comments and photos will be deleted too. This can’t be undone." onConfirm={onDelete} onCancel={() => setConfirming(false)} />
+        )}
       </div>
     </article>
   );

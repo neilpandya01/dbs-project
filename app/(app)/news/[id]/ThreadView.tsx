@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Avatar } from "@/components/Avatar";
 import { CommentItem } from "@/components/CommentItem";
+import { ConfirmDelete } from "@/components/ConfirmDelete";
 import { ImageAttach } from "@/components/ImageAttach";
 import { Photos } from "@/components/Photos";
 import { ThreadForm } from "@/components/ThreadForm";
@@ -34,6 +35,7 @@ export function ThreadView({ id }: { id: string }) {
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [editing, setEditing] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -148,12 +150,15 @@ export function ThreadView({ id }: { id: string }) {
             {mine ? (
               <>
                 <button className="pill ghost" onClick={() => setEditing(true)}>Edit</button>
-                <button className="pill ghost" onClick={del}>Delete</button>
+                <button className="pill ghost" onClick={() => setConfirmDel(true)} aria-pressed={confirmDel}>Delete</button>
               </>
             ) : (
               <button className="pill ghost" aria-pressed={flagged} onClick={flag} disabled={flagged}>{flagged ? "Flagged" : "Flag"}</button>
             )}
           </div>
+          {confirmDel && (
+            <ConfirmDelete title="Delete this thread?" detail="Its comments and photos will be deleted too. This can’t be undone." onConfirm={del} onCancel={() => setConfirmDel(false)} />
+          )}
         </div>
       </article>
 

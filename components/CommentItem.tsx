@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Avatar } from "./Avatar";
+import { ConfirmDelete } from "./ConfirmDelete";
 import { ImageAttach } from "./ImageAttach";
 import { Photos } from "./Photos";
 import { UserLink } from "./UserLink";
@@ -22,6 +23,7 @@ export function CommentItem({ c, now, mine, thread, onSave, onDelete }: {
   const [kept, setKept] = useState(c.images);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   const save = async () => {
     if (!text.trim() && kept.length === 0) return setError("A comment needs some text or a photo.");
@@ -45,7 +47,7 @@ export function CommentItem({ c, now, mine, thread, onSave, onDelete }: {
           {mine && !editing && (
             <>
               <button className="pill ghost" onClick={() => { setText(c.body); setKept(c.images); setEditing(true); }}>Edit</button>
-              <button className="pill ghost" onClick={onDelete}>Delete</button>
+              <button className="pill ghost" onClick={() => setConfirming(true)} aria-pressed={confirming}>Delete</button>
             </>
           )}
         </div>
@@ -65,6 +67,9 @@ export function CommentItem({ c, now, mine, thread, onSave, onDelete }: {
             {c.body && <p>{c.body}</p>}
             <Photos images={c.images} />
           </>
+        )}
+        {confirming && (
+          <ConfirmDelete title="Delete this comment?" detail="This can’t be undone." onConfirm={onDelete} onCancel={() => setConfirming(false)} />
         )}
       </div>
     </div>
