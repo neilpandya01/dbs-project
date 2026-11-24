@@ -10,13 +10,11 @@ import { Photos } from "@/components/Photos";
 import { ThreadForm } from "@/components/ThreadForm";
 import { UserLink } from "@/components/UserLink";
 import { YouTag } from "@/components/YouTag";
-import { AIRPORTS, airportsNear } from "@/lib/core";
-import { useFlights } from "@/lib/flightsStore";
+import { AIRPORTS } from "@/lib/core";
 import { useFriends } from "@/lib/friendsStore";
-import { useProfile } from "@/lib/profileStore";
 import { useSupabase } from "@/lib/supabase";
 import {
-  COMMENT_COLUMNS, THREAD_COLUMNS, activity, ago, colorFor, deleteComment, deleteThread, editComment, flagThread, hotScore, hotspots,
+  COMMENT_COLUMNS, THREAD_COLUMNS, activity, ago, colorFor, deleteComment, deleteThread, editComment, flagThread, hotScore,
   saveThread, voteThread, type Comment, type Thread, type ThreadValues,
 } from "@/lib/threads";
 import { useMe } from "@/lib/useMe";
@@ -83,8 +81,6 @@ function ThreadCard({ t, now, mine, friend, voted, flagged, onVote, onFlag, onEd
 }
 
 export function NewsView() {
-  const { profile } = useProfile();
-  const { flights } = useFlights();
   const { friends } = useFriends();
   const me = useMe();
   const supabase = useSupabase();
@@ -97,7 +93,6 @@ export function NewsView() {
   const [error, setError] = useState<string | null>(null);
   const [scope, setScope] = useState<Scope>("all");
   const [sort, setSort] = useState<Sort>("hot");
-  const [mine, setMine] = useState(false);
   const [airports, setAirports] = useState<string[]>([]); // show only threads tagged with any of these airports
   const addAirport = (code: string) => code && setAirports((a) => (a.includes(code) ? a : [...a, code]));
   const [form, setForm] = useState<{ thread: Thread | null } | null>(null);
@@ -140,15 +135,6 @@ export function NewsView() {
 
   const friendIds = useMemo(() => new Set(friends.map((f) => f.id)), [friends]);
 
-  // "My airports": near your home city, plus every airport you've flown to or from
-  const myAirports = useMemo(
-    () => new Set([...(profile.homePlace ? airportsNear(profile.homePlace.lat, profile.homePlace.lon) : []), ...flights.flatMap((f) => [f.from, f.to])]),
-    [profile.homePlace, flights]
-  );
-
-  // summaries built from volume: which airports are busy right now, and which threads people are reacting to
-  const spots = useMemo(() => hotspots(threads, now), [threads, now]);
-
   const counts = useMemo(() => ({
     friends: threads.filter((t) => friendIds.has(t.user_id)).length,
     mine: threads.filter((t) => t.user_id === me.id).length,
@@ -157,14 +143,13 @@ export function NewsView() {
   const list = useMemo(() => {
     const f = threads.filter((t) =>
       (scope === "all" || (scope === "friends" && friendIds.has(t.user_id)) || (scope === "mine" && t.user_id === me.id)) &&
-      (!mine || t.airports.some((c) => myAirports.has(c))) &&
       (airports.length === 0 || t.airports.some((c) => airports.includes(c)))
     );
     // Hot / Top only apply to the All feed; Friends and My threads are always newest first
     if (scope !== "all" || sort === "new") return [...f].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
     if (sort === "top") return [...f].sort((a, b) => activity(b) - activity(a) || Date.parse(b.created_at) - Date.parse(a.created_at));
     return [...f].sort((a, b) => hotScore(b, now) - hotScore(a, now));
-  }, [threads, scope, friendIds, me.id, mine, myAirports, airports, sort, now]);
+  }, [threads, scope, friendIds, me.id, airports, sort, now]);
 
   const save = async (v: ThreadValues) => {
     const existing = form?.thread ?? null;
@@ -229,23 +214,6 @@ export function NewsView() {
         <button className="btn primary" onClick={() => setForm({ thread: null })}>＋ Start a thread</button>
       </div>
 
-      {scope === "all" && spots.length > 0 && airports.length === 0 && (
-        <section aria-label="Developing now">
-          <h2 className="sec">Developing now <small>busiest airports, last 24 h</small></h2>
-          <div className="hotspots">
-            {spots.map((s) => (
-              <button key={s.code} type="button" className="hotspot" onClick={() => addAirport(s.code)} aria-label={`Show threads about ${s.code}`}>
-                <div className="hotspot-code mono">{s.code}<span>{AIRPORTS[s.code]?.city}</span></div>
-                <div className="hotspot-stats">
-                  <b>{s.threads.length}</b> {s.threads.length === 1 ? "report" : "reports"} · <b>{s.comments}</b> {s.comments === 1 ? "comment" : "comments"}
-                </div>
-                <p>Latest buzz: “{s.top.title}”</p>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
       {scope === "comments" ? (
         <section aria-label="My comments">
           {myComments === null ? (
@@ -274,7 +242,6 @@ export function NewsView() {
             {scope === "all" && SORTS.map(([s, label]) => (
               <button key={s} className="chip-btn" aria-pressed={sort === s} onClick={() => setSort(s)}>{label}</button>
             ))}
-            <button className="chip-btn mine" aria-pressed={mine} onClick={() => setMine((m) => !m)}>★ My airports</button>
           </div>
 
           <div className="airport-filter">
@@ -315,10 +282,10 @@ export function NewsView() {
           ) : (
             <div className="card empty" style={{ marginTop: 12 }}>
               <b>
-                {airports.length > 0 || mine ? "No threads match" : scope === "friends" ? "No threads from friends yet" : scope === "mine" ? "You haven’t started a thread yet" : "No threads yet"}
+                {airports.length > 0 ? "No threads match" : scope === "friends" ? "No threads from friends yet" : scope === "mine" ? "You haven’t started a thread yet" : "No threads yet"}
               </b>
               <p className="muted" style={{ margin: "6px 0 0" }}>
-                {airports.length > 0 || mine ? "Try other airports, or clear the filters." : scope === "friends" ? "Threads your friends post show up here." : "Be the first to share what you’re seeing at an airport."}
+                {airports.length > 0 ? "Try other airports, or clear the filters." : scope === "friends" ? "Threads your friends post show up here." : "Be the first to share what you’re seeing at an airport."}
               </p>
             </div>
           )}

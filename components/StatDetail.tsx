@@ -34,11 +34,17 @@ function Rows({ rows }: { rows: Row[] }) {
   );
 }
 
+/** Singular wording for a fact label when its value is exactly 1 ("1 airport", not "1 airports"). */
+const SINGULAR: Record<string, string> = {
+  flights: "flight", hours: "hour", "days aloft": "day aloft", "total miles": "total mile", airports: "airport", countries: "country",
+  continents: "continent", airlines: "airline", types: "type", routes: "route",
+};
+
 function Facts({ items }: { items: [string, string][] }) {
   return (
     <div className="facts">
       {items.map(([l, v]) => (
-        <div key={l}><b>{v}</b><span>{l}</span></div>
+        <div key={l}><b>{v}</b><span>{v === "1" || v === "1.0" ? SINGULAR[l] ?? l : l}</span></div>
       ))}
     </div>
   );

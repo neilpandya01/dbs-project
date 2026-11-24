@@ -33,7 +33,7 @@ type Props = {
   /** Shown for your own profile only (a friend's own friend list is private). */
   friendCount?: number;
   /** Your own profile only: avatars shown on the friends pill, which links to your friends list. */
-  friendAvatars?: { username: string; name: string; color: string }[];
+  friendAvatars?: { username: string; name: string; color: string; photo?: string | null }[];
   flights: Flight[];
   now: Date;
   /** Present only on your own profile: adding flights, editing, resetting. Friends' pages are read-only. */
@@ -95,11 +95,11 @@ export function ProfileLayout({ who, subtitle, friendCount, friendAvatars, fligh
         )}
         {heroActions && <div className="hero-actions">{heroActions}</div>}
         {own && (
-          <Link href="/friends" className="friends-pill" aria-label={`${friendCount ?? 0} friends. View friends`}>
+          <Link href="/friends" className="friends-pill" aria-label={`${friendCount ?? 0} ${friendCount === 1 ? "friend" : "friends"}. View friends`}>
             <span className="friends-stack" aria-hidden="true">
-              {(friendAvatars ?? []).slice(0, 3).map((f) => <Avatar key={f.username} name={f.name} color={f.color} size={22} />)}
+              {(friendAvatars ?? []).slice(0, 3).map((f) => <Avatar key={f.username} name={f.name} color={f.color} src={f.photo} size={22} />)}
             </span>
-            <span className="friends-text"><b>{friendCount ?? 0}</b> friends</span>
+            <span className="friends-text"><b>{friendCount ?? 0}</b> {friendCount === 1 ? "friend" : "friends"}</span>
             <span className="friends-chev" aria-hidden="true">›</span>
           </Link>
         )}

@@ -72,30 +72,6 @@ export function hotScore(t: Thread, now: number) {
   return (t.helpful * 2 + t.comment_count * 3 + 1) / Math.pow(ageH + 2, 1.4);
 }
 
-export type Hotspot = { code: string; threads: Thread[]; comments: number; helpful: number; top: Thread; score: number };
-
-/**
- * Airports with a burst of reports lately: tagged by at least 2 threads in the last 24 hours, or by one thread
- * people are actively talking about. Ranked by volume. This is the "what's going on right now" summary.
- */
-export function hotspots(threads: Thread[], now: number, windowHours = 24): Hotspot[] {
-  const since = now - windowHours * HOUR;
-  const by = new Map<string, Thread[]>();
-  for (const t of threads) {
-    if (Date.parse(t.created_at) < since) continue;
-    for (const code of t.airports) by.set(code, [...(by.get(code) ?? []), t]);
-  }
-  const out: Hotspot[] = [];
-  for (const [code, list] of by) {
-    const comments = list.reduce((s, t) => s + t.comment_count, 0);
-    const helpful = list.reduce((s, t) => s + t.helpful, 0);
-    if (list.length < 2 && comments + helpful < 3) continue;
-    const top = [...list].sort((a, b) => hotScore(b, now) - hotScore(a, now))[0];
-    out.push({ code, threads: list, comments, helpful, top, score: list.length * 3 + comments * 2 + helpful });
-  }
-  return out.sort((a, b) => b.score - a.score).slice(0, 4);
-}
-
 // ---- photos ---------------------------------------------------------------------------------------------
 const IMAGE_PATH = /^[A-Za-z0-9_-]+\/[0-9a-f-]{36}\.jpg$/;
 

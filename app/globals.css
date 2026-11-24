@@ -222,8 +222,6 @@ h1, h2, h3, .stat .v, .bar b, .brand { font-family: var(--font-display), var(--f
 .chip-bar { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px 0 14px; margin: 0 -16px; padding-inline: 16px; }
 .chip-btn { border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 8px 15px; font-weight: 600; font-size: 14px; white-space: nowrap; color: var(--muted); }
 .chip-btn[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
-.chip-btn.mine { margin-left: auto; }
-.chip-btn.mine[aria-pressed="true"] { background: #f5b100; border-color: #f5b100; color: #3b2a00; }
 h2.sec { font-size: 13px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); margin: 22px 0 10px; font-family: var(--font-body), sans-serif; font-weight: 700; display: flex; gap: 8px; align-items: baseline; }
 h2.sec small { text-transform: none; letter-spacing: 0; font-weight: 500; opacity: .8; }
 
@@ -608,14 +606,6 @@ button.tag-btn:hover { filter: brightness(.95); }
 .airport-filter { margin-top: 2px; }
 .airport-filter-on { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 14px; background: var(--accent-soft); font-size: 14px; }
 
-.hotspots { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
-.hotspot { text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 12px 14px; box-shadow: var(--shadow); cursor: pointer; font: inherit; color: inherit; }
-.hotspot:hover { border-color: var(--accent); }
-.hotspot-code { font-size: 20px; font-weight: 800; display: flex; align-items: baseline; gap: 8px; }
-.hotspot-code span { font-size: 13px; font-weight: 600; color: var(--muted); font-family: var(--font-body), sans-serif; }
-.hotspot-stats { font-size: 13px; color: var(--muted); margin: 2px 0 6px; }
-.hotspot p { margin: 0; font-size: 14px; line-height: 1.35; }
-
 .thread-full { margin-top: 4px; }
 .thread-title { font-size: 22px; margin: 8px 0 6px; line-height: 1.25; font-family: var(--font-body), sans-serif; font-weight: 700; }
 .thread-body { white-space: pre-wrap; color: var(--text); font-size: 16px; line-height: 1.5; margin: 0; }
@@ -638,8 +628,8 @@ button.tag-btn:hover { filter: brightness(.95); }
 /* photos and attaching them */
 .photos { display: grid; gap: 6px; margin-top: 10px; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
 .photos.large { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
-.photos a { display: block; border-radius: 12px; overflow: hidden; background: var(--surface-2); aspect-ratio: 4 / 3; }
-.photos.large a { aspect-ratio: auto; max-height: 420px; }
+.photos .photo-btn { display: block; padding: 0; border: 0; cursor: zoom-in; width: 100%; border-radius: 12px; overflow: hidden; background: var(--surface-2); aspect-ratio: 4 / 3; }
+.photos.large .photo-btn { aspect-ratio: auto; max-height: 420px; }
 .photos img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .photos.large img { object-fit: contain; max-height: 420px; }
 .attach { display: grid; gap: 6px; }
@@ -653,3 +643,13 @@ button.tag-btn:hover { filter: brightness(.95); }
 .comments-card { padding: 4px 14px; }
 .scope-bar { flex-wrap: wrap; overflow: visible; }
 .airport-filter-on { margin-bottom: 8px; }
+
+/* photo viewer: shows a thread or comment photo large, in the app */
+.lightbox { position: fixed; inset: 0; z-index: 100; background: rgba(6, 14, 30, .88); display: grid; place-items: center; padding: 56px 16px; cursor: zoom-out; }
+.lightbox > img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 10px; cursor: default; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+.lightbox-btn { position: absolute; border: 0; cursor: pointer; color: #fff; background: rgba(255,255,255,.16); width: 42px; height: 42px; border-radius: 50%; font-size: 22px; line-height: 1; display: grid; place-items: center; }
+.lightbox-btn:hover { background: rgba(255,255,255,.3); }
+.lightbox-close { top: 12px; right: 12px; font-size: 18px; }
+.lightbox-prev { left: 12px; top: 50%; transform: translateY(-50%); }
+.lightbox-next { right: 12px; top: 50%; transform: translateY(-50%); }
+.lightbox-count { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 13px; font-weight: 600; background: rgba(255,255,255,.16); padding: 4px 12px; border-radius: 999px; }
