@@ -589,3 +589,5 @@ a.see-all:hover { text-decoration: underline; }
 .ago.stale { color: var(--warn); font-weight: 600; }
 .map-warn { position: absolute; top: 46px; left: 12px; right: 12px; max-width: 440px; z-index: 6; padding: 10px 12px; border-radius: 14px; font-size: 13.5px; line-height: 1.4; background: var(--warn-soft); color: var(--text); border: 1px solid var(--warn); box-shadow: var(--shadow); }
 @media (max-width: 860px) { .map-warn { top: 100px; } }
+.map-legend i.line { width: 16px; height: 3px; border: 0; border-radius: 2px; box-shadow: none; }
+@media (max-width: 860px) { .map-legend { flex-wrap: wrap; gap: 4px 10px; border-radius: 16px; max-width: calc(100% - 24px); } }

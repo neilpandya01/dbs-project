@@ -56,7 +56,7 @@ function airportsToGeoJSON(list: MapAirport[]) {
     type: "FeatureCollection" as const,
     features: list.map((a) => ({
       type: "Feature" as const,
-      properties: { code: a.code, kind: a.kind },
+      properties: { code: a.code, kind: a.kind, city: AIRPORTS[a.code].city },
       geometry: { type: "Point" as const, coordinates: AIRPORTS[a.code].lngLat },
     })),
   };
@@ -170,10 +170,10 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
     });
     map.current = m;
     // More responsive zooming. MapLibre's defaults (1/450 for a mouse wheel, 1/100 for a trackpad pinch) feel sluggish,
-    // so each notch / pinch distance now zooms about twice as far.
+    // so each notch / pinch distance now zooms about four times as far.
     if (interactive) {
-      m.scrollZoom.setWheelZoomRate(1 / 200);
-      m.scrollZoom.setZoomRate(1 / 50);
+      m.scrollZoom.setWheelZoomRate(1 / 110);
+      m.scrollZoom.setZoomRate(1 / 28);
     }
     m.addControl(new maplibregl.AttributionControl({ compact: true }), "top-left");
     if (interactive) m.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
@@ -237,7 +237,8 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
           source: "airports",
           minzoom: 2.6,
           layout: {
-            "text-field": ["get", "code"],
+            // the code from a moderate zoom; the city as well once you are zoomed in further
+            "text-field": ["step", ["zoom"], ["get", "code"], 4.5, ["concat", ["get", "code"], " · ", ["get", "city"]]],
             "text-font": ["Noto Sans Bold"],
             "text-size": 11,
             "text-offset": [0, 1.2],

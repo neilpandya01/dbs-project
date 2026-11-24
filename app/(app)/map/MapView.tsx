@@ -10,6 +10,7 @@ import { AIRPORTS, flightMiles, type Flight } from "@/lib/core";
 import { fmtDate, isPast, toLeg } from "@/lib/itinerary";
 import { useFlights } from "@/lib/flightsStore";
 import { useFriends } from "@/lib/friendsStore";
+import { useProfile } from "@/lib/profileStore";
 import { liveFlight } from "@/lib/live";
 import { useLivePositions, type LivePos } from "@/lib/livePositions";
 import { bearing, distanceMiles } from "@/lib/geo";
@@ -45,6 +46,10 @@ type Item = {
   color: string;
   owner: string;
   photo?: string | null;
+  /** Friends who have also flown this route (either direction), for routes in your own history. */
+  sharedWith: string[];
+  /** The picture/initials shown next to the row: your own profile for your flights, the friend's for theirs. */
+  face: { name: string; color: string; photo: string | null };
   /** On its way right now: how far along (from its real position) and its scheduled arrival. */
   live?: { progress: number; lands?: string; real: LivePos; phase: Phase };
   miles: number;
@@ -62,7 +67,10 @@ function progressOf(f: Flight, p: LivePos) {
   return routeProgress(AIRPORTS[f.from].lngLat, AIRPORTS[f.to].lngLat, [p.lon, p.lat]);
 }
 
-function buildItems(myFlights: Flight[], friendLive: LiveEntry[]): Item[] {
+/** The same two airports in either direction count as one route. */
+const pairKey = (a: string, b: string) => [a, b].sort().join("-");
+
+function buildItems(myFlights: Flight[], friendLive: LiveEntry[], me: { name: string; color: string; photo: string | null }, shared: Map<string, string[]>): Item[] {
   return [
     ...friendLive.map<Item>((l) => ({
       id: l.flight.id,
@@ -75,6 +83,8 @@ function buildItems(myFlights: Flight[], friendLive: LiveEntry[]): Item[] {
       color: l.color,
       owner: l.name,
       photo: l.photo,
+      face: { name: l.name, color: l.color, photo: l.photo },
+      sharedWith: [],
       live: { progress: l.progress, lands: toLeg(l.flight).arrText, real: l.real, phase: l.phase },
       miles: Math.round(flightMiles(l.flight)),
       search: searchText(l.flight, `${l.name} ${l.username}`),
@@ -89,8 +99,11 @@ function buildItems(myFlights: Flight[], friendLive: LiveEntry[]): Item[] {
         number: f.number ?? `${f.from}–${f.to}`,
         from: f.from,
         to: f.to,
-        color: MINE_COLOR,
+        // your own routes are blue, and purple when a friend has flown the same route
+        color: shared.has(pairKey(f.from, f.to)) ? AIRPORT_COLORS.both : MINE_COLOR,
         owner: "You",
+        face: me,
+        sharedWith: shared.get(pairKey(f.from, f.to)) ?? [],
         miles: Math.round(flightMiles(f)),
         search: searchText(f, ""),
       })),
@@ -100,6 +113,7 @@ function buildItems(myFlights: Flight[], friendLive: LiveEntry[]): Item[] {
 export function MapView() {
   const { flights } = useFlights();
   const { friends, flightsOf } = useFriends();
+  const { profile } = useProfile();
   const now = useNow() ?? new Date();
   const { positions: real, down: trackingDown } = useLivePositions(true); // also tells the tracker you're watching, so it follows these flights
   // the map is your history: only flights that have landed
@@ -126,7 +140,21 @@ export function MapView() {
     () => friends.some((fr) => { const l = liveFlight(flightsOf(fr.id), now); return !!l && !friendLive.some((x) => x.flight.id === l.flight.id); }),
     [friends, flightsOf, now, friendLive]
   );
-  const ITEMS = useMemo(() => buildItems(myFlights, friendLive), [myFlights, friendLive]);
+  // routes you share with friends: which friends have flown each route you have flown (friend-only routes are never drawn)
+  const shared = useMemo(() => {
+    const mine = new Set(myFlights.map((f) => pairKey(f.from, f.to)));
+    const m = new Map<string, string[]>();
+    for (const fr of friends) {
+      for (const f of flightsOf(fr.id)) {
+        const k = pairKey(f.from, f.to);
+        if (!isPast(f, now) || !mine.has(k)) continue;
+        const names = m.get(k) ?? [];
+        if (!names.includes(fr.name)) m.set(k, [...names, fr.name]);
+      }
+    }
+    return m;
+  }, [myFlights, friends, flightsOf, now]);
+  const ITEMS = useMemo(() => buildItems(myFlights, friendLive, { name: profile.name, color: profile.color, photo: profile.photo }, shared), [myFlights, friendLive, profile.name, profile.color, profile.photo, shared]);
   const [mode, setMode] = useState<Mode>("all");
   const [query, setQuery] = useState("");
   const [selected, setSelectedRaw] = useState<string | null>(null);
@@ -147,17 +175,28 @@ export function MapView() {
 
   // At the departure airport the planned route is drawn plain; in flight it's solid to the plane and dotted from it;
   // at the arrival airport there's no route (the flight is over).
-  const routes: MapRoute[] = visible
-    .filter((i) => i.live?.phase !== "arrival")
-    .map((i) => ({
-      id: i.id,
-      from: i.from,
-      to: i.to,
-      color: i.color,
-      highlight: i.id === selected,
-      progress: i.live?.phase === "airborne" ? i.live.progress : undefined,
-      pos: i.live?.phase === "airborne" ? ([i.live.real.lon, i.live.real.lat] as [number, number]) : undefined,
-    }));
+  const routes: MapRoute[] = (() => {
+    const out: MapRoute[] = [];
+    const seen = new Set<string>();
+    const selItem = selected ? ITEMS.find((x) => x.id === selected) : undefined;
+    const selKey = selItem ? pairKey(selItem.from, selItem.to) : null;
+    for (const i of visible) {
+      if (i.live?.phase === "arrival") continue; // at the arrival airport the flight is over: no route
+      if (i.kind === "mine") {
+        const k = pairKey(i.from, i.to);
+        if (seen.has(k)) continue; // flying ORD-LAX five times is still one line
+        seen.add(k);
+        out.push({ id: i.id, from: i.from, to: i.to, color: i.color, highlight: k === selKey });
+      } else {
+        out.push({
+          id: i.id, from: i.from, to: i.to, color: i.color, highlight: i.id === selected,
+          progress: i.live?.phase === "airborne" ? i.live.progress : undefined,
+          pos: i.live?.phase === "airborne" ? ([i.live.real.lon, i.live.real.lat] as [number, number]) : undefined,
+        });
+      }
+    }
+    return out;
+  })();
   const planes: MapPlane[] = visible
     .filter((i) => i.live)
     .map((i) => ({
@@ -232,9 +271,9 @@ export function MapView() {
           {visible.map((i) => (
             <div key={i.id} style={{ display: "flex", alignItems: "center" }}>
               <button className="track-item" aria-pressed={selected === i.id} onClick={() => setSelected(selected === i.id ? null : i.id)}>
-                <Avatar name={i.owner} color={i.color} size={34} />
+                <Avatar name={i.face.name || i.owner} color={i.face.color} src={i.face.photo} size={34} />
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <b className="mono" style={{ fontSize: 14 }}>{i.title}</b>
+                  <b className="mono" style={{ fontSize: 14 }}>{i.title}</b>{i.kind === "mine" && <> <span className="badge accent">You</span></>}
                   <span className="muted" style={{ display: "block", fontSize: 12.5 }}>
                     {i.owner === "You" ? "" : `${i.owner} · `}{i.sub}
                     {i.live?.real?.seenAt && <> · <Ago iso={i.live.real.seenAt} /></>}
@@ -255,16 +294,18 @@ export function MapView() {
           </div>
         )}
         <FlightMap routes={routes} planes={planes} selectedPlane={selected} onSelectPlane={setSelected} airports={airports} onSelectAirport={pickAirport} focus={focus} />
-        <ul className="map-legend" aria-label="Airport legend">
-          <li><i style={{ background: AIRPORT_COLORS.me }} />You</li>
-          <li><i style={{ background: AIRPORT_COLORS.friend }} />Friends</li>
-          <li><i style={{ background: AIRPORT_COLORS.both }} />Both</li>
+        <ul className="map-legend" aria-label="Map legend">
+          <li><i style={{ background: AIRPORT_COLORS.me }} />Only you</li>
+          <li><i style={{ background: AIRPORT_COLORS.friend }} />Only friends</li>
+          <li><i style={{ background: AIRPORT_COLORS.both }} />You &amp; friends</li>
+          <li><i className="line" style={{ background: AIRPORT_COLORS.both }} />Shared route</li>
         </ul>
         {apt && (
           <div className="card map-overlay">
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
               <div>
                 <b className="mono">{apt.code} · {apt.info.city}</b>
+                <div style={{ fontSize: 13 }}>{apt.info.name}</div>
                 <div className="muted" style={{ fontSize: 13 }}>{apt.info.country}</div>
               </div>
               <button className="btn small" style={{ alignSelf: "flex-start" }} onClick={() => setAirport(null)} aria-label="Close details">✕</button>
@@ -297,7 +338,9 @@ export function MapView() {
                   </span>
                 </>
               ) : (
-                <span className="muted">Completed flight</span>
+                <span className="muted">
+                  {sel.kind === "mine" && sel.sharedWith.length > 0 ? `Shared route · also flown by ${sel.sharedWith.join(", ")}` : "Completed flight"}
+                </span>
               )}
             </div>
           </div>
