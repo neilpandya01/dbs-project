@@ -40,7 +40,7 @@ export function CommentItem({ c, now, mine, thread, mentionPeople = null, onSave
   };
 
   return (
-    <div className={`comment${mine ? " mine" : ""}`}>
+    <div id={`c-${c.id}`} className={`comment${mine ? " mine" : ""}`}>
       <UserLink username={c.author_username}><Avatar name={c.author_name || c.author_username} color={colorFor(c.author_username)} size={32} /></UserLink>
       <div className="comment-main">
         <div className="post-head">

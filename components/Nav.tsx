@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Avatar } from "./Avatar";
 import { useFriends } from "@/lib/friendsStore";
+import { useMentions } from "@/lib/mentionsStore";
 import { useProfile } from "@/lib/profileStore";
 
 const icons = {
@@ -26,6 +27,7 @@ export function Nav() {
   const pathname = usePathname();
   const { profile } = useProfile();
   const { badge } = useFriends();
+  const { unseen } = useMentions();
   return (
     <>
       <header className="topbar">
@@ -43,6 +45,11 @@ export function Nav() {
           <Link key={l.href} href={l.href} aria-current={pathname.startsWith(l.href) ? "page" : undefined}>
             <span className="nav-icon">
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">{l.icon}</svg>
+              {l.href === "/news" && unseen > 0 && (
+                <span className="nav-badge" role="status">
+                  <span className="sr-only">{unseen} new mention{unseen === 1 ? "" : "s"}</span>
+                </span>
+              )}
               {l.href === "/friends" && badge > 0 && (
                 <span className="nav-badge" role="status">
                   <span className="sr-only">{badge} new friend update{badge === 1 ? "" : "s"}</span>

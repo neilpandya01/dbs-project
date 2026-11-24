@@ -6,6 +6,7 @@ import { AirportPicker } from "@/components/AirportPicker";
 import { Avatar } from "@/components/Avatar";
 import { CommentItem } from "@/components/CommentItem";
 import { ConfirmDelete } from "@/components/ConfirmDelete";
+import { MentionsPanel } from "@/components/MentionsPanel";
 import { Photos } from "@/components/Photos";
 import { ThreadForm } from "@/components/ThreadForm";
 import { UserLink } from "@/components/UserLink";
@@ -218,6 +219,8 @@ export function NewsView() {
   return (
     <>
       {error && <p className="msg err" role="alert">Couldn’t load threads: {error}</p>}
+
+      <MentionsPanel now={now} />
 
       <div className="section-bar" style={{ margin: "0 0 12px" }}>
         <div className="chip-bar scope-bar" role="group" aria-label="Whose threads" style={{ margin: 0, padding: 0 }}>

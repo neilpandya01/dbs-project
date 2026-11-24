@@ -65,6 +65,20 @@ export function ThreadView({ id }: { id: string }) {
     return () => { alive = false; };
   }, [id, me.id, supabase]);
 
+  // arriving from a "you were tagged" link (#c-<comment id>): scroll to that comment and flash it
+  const loaded = thread !== undefined && thread !== null;
+  useEffect(() => {
+    if (!loaded) return;
+    const m = /^#(c-[0-9a-f-]{36})$/i.exec(window.location.hash);
+    if (!m) return;
+    const el = document.getElementById(m[1]);
+    if (!el) return;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    el.classList.add("flash");
+    const t = setTimeout(() => el.classList.remove("flash"), 3000);
+    return () => clearTimeout(t);
+  }, [loaded, comments.length]);
+
   const needsServerList = !!thread && thread.friends_only && thread.user_id !== me.id;
   useEffect(() => {
     if (!needsServerList) { setSharedPeople(null); return; }
