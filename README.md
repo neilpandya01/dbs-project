@@ -6,7 +6,7 @@ swap airport news and tips with the community.
 
 **Version 2 (this version) works on phones and computers, and can be installed like a normal app.**
 
-> **Live app:** _add the Vercel link here_
+> **Live app:** https://dbs-project-nine.vercel.app/
 
 ---
 
