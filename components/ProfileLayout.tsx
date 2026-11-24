@@ -77,7 +77,7 @@ export function ProfileLayout({ who, subtitle, friendCount, friendAvatars, fligh
             </button>
           )}
           <div className="hero-info">
-            <span className="hero-greet">{subtitle}</span>
+            <span className={`hero-greet${subtitle === "Friend" || own ? " minor" : ""}`}>{subtitle}</span>
             {limited ? (
               <span className="hero-user static">@{who.username}</span>
             ) : (
@@ -110,9 +110,9 @@ export function ProfileLayout({ who, subtitle, friendCount, friendAvatars, fligh
         )}
       </section>
 
-      {!limited && (who.bio || (who.home && !subtitle.includes(who.home))) && (
+      {!limited && (who.bio || who.home) && (
         <button className="bio-peek" onClick={() => setDetails(true)} aria-label="View full profile details">
-          {who.home && !subtitle.includes(who.home) && <span className="bio-home"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.500A2.500 2.500 0 1 1 12 6.500a2.500 2.500 0 0 1 0 5Z" /></svg>{who.home}</span>}
+          {who.home && <span className="bio-home"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.500A2.500 2.500 0 1 1 12 6.500a2.500 2.500 0 0 1 0 5Z" /></svg>From {who.home}</span>}
           {who.bio && <span className="bio-text">{who.bio}</span>}
           {who.bio && who.bio.length > 110 && <span className="bio-more">Read more ›</span>}
         </button>

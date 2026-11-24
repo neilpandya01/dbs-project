@@ -6,7 +6,7 @@ import { FlightMap } from "@/components/FlightMapLazy";
 import type { MapAirport, MapPlane, MapRoute } from "@/components/FlightMap";
 import { AIRPORT_COLORS } from "@/lib/mapColors";
 import { useNow } from "@/components/useNow";
-import { AIRPORTS, flightMiles, type Flight } from "@/lib/core";
+import { AIRPORTS, flightHours, flightMiles, type Flight } from "@/lib/core";
 import { fmtDate, isPast, toLeg } from "@/lib/itinerary";
 import { useFlights } from "@/lib/flightsStore";
 import { useFriends } from "@/lib/friendsStore";
@@ -53,10 +53,14 @@ type Item = {
   /** On its way right now: how far along (from its real position) and its scheduled arrival. */
   live?: { progress: number; lands?: string; real: LivePos; phase: Phase };
   miles: number;
+  hours: number;
+  airline?: string;
+  aircraft?: string;
   search: string;
 };
 
 const MINE_COLOR = "#1f7ff0";
+const fmtHours = (h: number) => { const m = Math.round(h * 60); return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} m`; };
 
 const searchText = (f: Flight, who: string) =>
   `${who} ${f.number ?? ""} ${f.from} ${f.to} ${f.airline ?? ""} ${f.aircraft ?? ""} ${AIRPORTS[f.from]?.city ?? ""} ${AIRPORTS[f.to]?.city ?? ""}`.toLowerCase();
@@ -87,6 +91,9 @@ function buildItems(myFlights: Flight[], friendLive: LiveEntry[], me: { name: st
       sharedWith: [],
       live: { progress: l.progress, lands: toLeg(l.flight).arrText, real: l.real, phase: l.phase },
       miles: Math.round(flightMiles(l.flight)),
+      hours: flightHours(l.flight),
+      airline: l.flight.airline,
+      aircraft: l.flight.aircraft,
       search: searchText(l.flight, `${l.name} ${l.username}`),
     })),
     ...[...myFlights]
@@ -105,6 +112,9 @@ function buildItems(myFlights: Flight[], friendLive: LiveEntry[], me: { name: st
         face: me,
         sharedWith: shared.get(pairKey(f.from, f.to)) ?? [],
         miles: Math.round(flightMiles(f)),
+        hours: flightHours(f),
+        airline: f.airline,
+        aircraft: f.aircraft,
         search: searchText(f, ""),
       })),
   ];
@@ -210,7 +220,11 @@ export function MapView() {
     const seen = new Set<string>();
     const selItem = selected ? ITEMS.find((x) => x.id === selected) : undefined;
     const selKey = selItem ? pairKey(selItem.from, selItem.to) : null;
+    // routes of yours on screen: a friend flying the very same route (either way) gets no line of its own, only its plane,
+    // so an orange line never runs alongside your blue or purple one
+    const mineOnScreen = new Set(visible.filter((v) => v.kind === "mine").map((v) => pairKey(v.from, v.to)));
     for (const i of visible) {
+      if (i.kind === "friend" && i.id !== selected && mineOnScreen.has(pairKey(i.from, i.to))) continue;
       if (i.live?.phase === "arrival") continue; // at the arrival airport the flight is over: no route
       if (i.kind === "mine") {
         const k = pairKey(i.from, i.to);
@@ -218,8 +232,13 @@ export function MapView() {
         seen.add(k);
         out.push({ id: i.id, from: i.from, to: i.to, color: i.color, highlight: k === selKey });
       } else {
+        // a friend's dotted "where it's headed" line only shows once you tap that flight; otherwise their orange lines
+        // would run alongside your own blue routes. A plane still at its departure airport has no solid line at all.
+        const isSel = i.id === selected;
+        if (i.live?.phase === "departure" && !isSel) continue;
         out.push({
-          id: i.id, from: i.from, to: i.to, color: i.color, highlight: i.id === selected,
+          hideAhead: !isSel,
+          id: i.id, from: i.from, to: i.to, color: i.color, highlight: isSel,
           // in flight: solid to the plane, dotted onward. On the ground at the departure airport: only the dotted line
           // onward from where the plane is (it hasn't gone anywhere yet). Nothing at all once it has arrived.
           progress: i.live?.phase === "airborne" ? i.live.progress : undefined,
@@ -377,10 +396,15 @@ export function MapView() {
                   {sel.live.real.speedKt != null && <div><b>{sel.live.real.speedKt} kt</b><span>speed</span></div>}
                 </>
               ) : (
-                <div className="wide"><b>{sel.kind === "mine" && sel.sharedWith.length > 0 ? "Shared route" : "Completed"}</b><span>{sel.kind === "mine" && sel.sharedWith.length > 0 ? `also flown by ${sel.sharedWith.join(", ")}` : "flight"}</span></div>
+                <>
+                  <div><b>{fmtHours(sel.hours)}</b><span>est. flight time</span></div>
+                  {sel.airline && <div><b>{sel.airline}</b><span>airline</span></div>}
+                  {sel.aircraft && <div><b>{sel.aircraft}</b><span>aircraft</span></div>}
+                </>
               )}
             </div>
             {sel.live?.real.seenAt && <p className="detail-updated"><Ago iso={sel.live.real.seenAt} /></p>}
+            {!sel.live && sel.kind === "mine" && sel.sharedWith.length > 0 && <p className="detail-updated">Shared route · also flown by {sel.sharedWith.join(", ")}</p>}
           </div>
         )}
       </div>

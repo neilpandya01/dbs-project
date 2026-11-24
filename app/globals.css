@@ -825,3 +825,24 @@ img { max-width: 100%; }
 .comment.flash { animation: flash 3s ease-out; border-radius: 14px; }
 @keyframes flash { 0%, 60% { background: var(--accent-soft); box-shadow: 0 0 0 6px var(--accent-soft); } 100% { background: transparent; box-shadow: 0 0 0 6px transparent; } }
 @media (prefers-reduced-motion: reduce) { .comment.flash { animation: none; background: var(--accent-soft); } }
+
+/* phones: keep the white UI on the banner small so more of the banner shows */
+@media (max-width: 600px) {
+  .hero { min-height: 200px; gap: 0; }
+  .hero-info { padding: 5px 13px 6px; border-radius: 14px; }
+  .hero-user { font-size: 20px; }
+  .hero-greet.minor { display: none; }
+  .hero .avatar { --s: 52px !important; width: 52px; height: 52px; font-size: 20px; }
+  .hero-top { gap: 10px; }
+  /* friend / request buttons: small pills in the top-right corner instead of a full-width white row */
+  .hero-actions { position: absolute; top: 10px; right: 10px; left: auto; align-self: auto; gap: 6px; flex-wrap: nowrap; justify-content: flex-end; max-width: calc(100% - 20px); }
+  .hero-actions > * { flex: none; min-height: 34px; padding: 5px 12px; font-size: 13px; }
+  .hide-sm { display: none; }
+  .friends-pill { align-self: flex-start; }
+}
+
+@media (max-width: 600px) {
+  /* your own profile: Edit profile (top-right) and the friends pill (top-left) become small corner pills too */
+  .hero-edit { padding: 5px 11px; font-size: 13px; min-height: 34px; }
+  .hero > .friends-pill { position: absolute; top: 10px; left: 10px; align-self: auto; padding: 3px 11px 3px 4px; font-size: 13px; min-height: 34px; }
+}

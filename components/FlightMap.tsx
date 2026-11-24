@@ -11,6 +11,8 @@ import { textOn } from "./Avatar";
 export type MapRoute = { id: string; from: string; to: string; color?: string; highlight?: boolean; progress?: number;
   /** The aircraft's real position. When set, the solid line runs origin -> here and the dotted line here -> destination, so a plane that has veered off the direct route is drawn where it really is. */
   pos?: LngLat;
+  /** With `pos`: don't draw the dotted line ahead of the plane (keeps friends' lines from cluttering your own routes). */
+  hideAhead?: boolean;
   /** With `pos`: draw only the dotted line from the plane to the destination (a plane still on the ground has flown nowhere, so no solid line). */
   aheadOnly?: boolean };
 export type MapAirport = { code: string; kind: "me" | "friend" | "both" };
@@ -52,7 +54,7 @@ function routesToGeoJSON(routes: MapRoute[], dark = isDark()) {
     if (r.pos) {
       const a = AIRPORTS[r.from].lngLat, b = AIRPORTS[r.to].lngLat;
       if (!r.aheadOnly) features.push({ type: "Feature", properties: { ...base, part: "flown", arrows: 1 }, geometry: { type: "LineString", coordinates: greatCircleLine(a, r.pos, 80) } });
-      features.push({ type: "Feature", properties: { ...base, part: "rest", arrows: 0 }, geometry: { type: "LineString", coordinates: greatCircleLine(r.pos, b, 80) } });
+      if (!r.hideAhead) features.push({ type: "Feature", properties: { ...base, part: "rest", arrows: 0 }, geometry: { type: "LineString", coordinates: greatCircleLine(r.pos, b, 80) } });
     } else if (r.progress == null) {
       features.push({ type: "Feature", properties: { ...base, part: "all", arrows: r.highlight ? 1 : 0 }, geometry: { type: "LineString", coordinates: line } });
     } else {

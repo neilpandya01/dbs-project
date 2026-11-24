@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { LegRow } from "@/components/TripList";
 import { useNow } from "@/components/useNow";
+import { useFittingPlaceholder } from "@/lib/useFittingPlaceholder";
 import { useFlights } from "@/lib/flightsStore";
 import { dayCountdown, depOf, isPast, toLeg, type Leg } from "@/lib/itinerary";
 import { AIRPORTS, flightMiles } from "@/lib/core";
@@ -11,6 +12,8 @@ type Status = "all" | "past" | "upcoming";
 type Sort = "newest" | "oldest" | "longest" | "shortest";
 
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+
+const SEARCH_TERMS = ["airline", "flight no.", "airport", "tail number", "seat", "notes"];
 
 const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
@@ -53,6 +56,7 @@ function FilterSelect({ label, value, onChange, options }: { label: string; valu
 export function FlightsView() {
   const { allFlights: flights, openEditor } = useFlights();
   const now = useNow() ?? new Date();
+  const hint = useFittingPlaceholder(SEARCH_TERMS);
 
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<Status>("past"); // default: flights already taken
@@ -126,7 +130,7 @@ export function FlightsView() {
 
       <div className="search-box">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-        <input type="search" className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search airline, flight no., airport, tail number, seat, notes…" aria-label="Search flights" />
+        <input ref={hint.ref} type="search" className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder={hint.placeholder} aria-label="Search flights" />
       </div>
 
       <div className="filter-card" role="group" aria-label="Filters">

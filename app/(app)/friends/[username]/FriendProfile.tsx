@@ -57,14 +57,14 @@ export function FriendProfile({ username }: { username: string }) {
       <Link href="/friends" className="back-link">‹ Friends</Link>
       <ProfileLayout
         who={{ name: friend.name, username: friend.username, home: friend.home, bio: friend.bio, photo: friend.photo, color: friend.color, banner: friend.banner, joined: friend.joined }}
-        subtitle={friend.home ? `From ${friend.home}` : "Friend"}
+        subtitle="Friend"
         friendCount={count ?? undefined}
         flights={flightsOf(friend.id)}
         now={now}
         heroActions={
           <>
             <span className="hero-btn static">✓ Friends</span>
-            <button className="hero-btn danger" onClick={() => { setRemoveError(null); setConfirming(true); }}>Remove friend</button>
+            <button className="hero-btn danger" onClick={() => { setRemoveError(null); setConfirming(true); }}>Remove<span className="hide-sm"> friend</span></button>
           </>
         }
       />
