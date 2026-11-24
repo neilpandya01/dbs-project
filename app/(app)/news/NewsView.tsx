@@ -1,115 +1,58 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AirportPicker } from "@/components/AirportPicker";
+import { AirportTags } from "@/components/AirportTags";
 import { Avatar } from "@/components/Avatar";
 import { Sheet } from "@/components/Sheet";
-import { airportsNear } from "@/lib/core";
+import { AIRPORTS, airportsNear } from "@/lib/core";
 import { useFlights } from "@/lib/flightsStore";
 import { useProfile } from "@/lib/profileStore";
 import { useSupabase } from "@/lib/supabase";
+import {
+  BODY_MAX, THREAD_COLUMNS, TITLE_MAX, activity, ago, colorFor, deleteThread, flagThread, hotScore, hotspots, trending, voteThread,
+  type Thread,
+} from "@/lib/threads";
 import { useMe } from "@/lib/useMe";
 
-type Filter = "all" | "alert" | "headline" | "report";
+type Sort = "hot" | "new" | "top";
 
-/** A row of Supabase `news_items`: headlines and airport alerts that background workers will fill in later. */
-type NewsRow = {
-  id: string; kind: "headline" | "alert"; severity: "info" | "delay" | "stop" | null; title: string; summary: string;
-  source: string; url: string | null; tags: string[]; published_at: string;
-};
-/** A row of Supabase `reports`: posts from people using Wingmates. */
-type ReportRow = {
-  id: string; user_id: string; author_username: string; author_name: string; airport: string | null;
-  title: string; body: string; helpful: number; created_at: string;
-};
-
-const SEV = {
-  stop: { label: "Ground stop", cls: "stop" },
-  delay: { label: "Delays", cls: "delay" },
-  info: { label: "Advisory", cls: "info" },
-} as const;
-
-function ago(iso: string, now: number) {
-  const mins = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60000));
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
-  const h = Math.round(mins / 60);
-  if (h < 24) return `${h} h ago`;
-  const d = Math.round(h / 24);
-  return d === 1 ? "Yesterday" : `${d} days ago`;
-}
-
-/** A steady colour for a username, so the same person always gets the same avatar. */
-function colorFor(name: string) {
-  let h = 0;
-  for (const c of name) h = (h * 31 + c.charCodeAt(0)) % 360;
-  return `hsl(${h} 55% 45%)`;
-}
-
-const safeUrl = (u: string | null) => (u && /^https:\/\//i.test(u) ? u : null);
-
-function Tags({ tags }: { tags: string[] }) {
-  return <>{tags.map((t) => <span key={t} className="tag mono">{t}</span>)}</>;
-}
-
-function StatusTile({ n, now }: { n: NewsRow; now: number }) {
-  const sev = SEV[n.severity ?? "info"];
+function Tags({ tags, onPick }: { tags: string[]; onPick?: (code: string) => void }) {
   return (
-    <article className={`board-tile ${sev.cls}`}>
-      <div className="code mono">{n.tags[0] ?? "—"}</div>
-      <div className="state"><i /> {sev.label}</div>
-      <p>{n.summary || n.title}</p>
-      <time>{n.source} · {ago(n.published_at, now)}</time>
-    </article>
+    <>
+      {tags.map((t) =>
+        onPick ? (
+          <button key={t} type="button" className="tag mono tag-btn" onClick={() => onPick(t)} title={AIRPORTS[t] ? `${AIRPORTS[t].name}: show threads about ${t}` : undefined}>{t}</button>
+        ) : (
+          <span key={t} className="tag mono">{t}</span>
+        )
+      )}
+    </>
   );
 }
 
-function Featured({ n, now }: { n: NewsRow; now: number }) {
-  const url = safeUrl(n.url);
-  return (
-    <article className="featured">
-      <div className="kicker">Top story · {n.source}</div>
-      <h3>{n.title}</h3>
-      {n.summary && <p>{n.summary}</p>}
-      <div className="byline"><Tags tags={n.tags} /><span>{ago(n.published_at, now)}</span></div>
-      {url && <a href={url} target="_blank" rel="noopener noreferrer" className="source-link">Read at {n.source} ↗</a>}
-    </article>
-  );
-}
-
-function Story({ n, now }: { n: NewsRow; now: number }) {
-  const url = safeUrl(n.url);
-  return (
-    <article className="story">
-      <div className="kicker">{n.source} · {ago(n.published_at, now)}</div>
-      <h3>{n.title}</h3>
-      {n.summary && <p>{n.summary}</p>}
-      <div className="byline">
-        <Tags tags={n.tags} />
-        {url && <a href={url} target="_blank" rel="noopener noreferrer" className="source-link" style={{ marginLeft: "auto" }}>Read at source ↗</a>}
-      </div>
-    </article>
-  );
-}
-
-function Report({ r, now, mine, voted, flagged, onVote, onFlag, onDelete }: {
-  r: ReportRow; now: number; mine: boolean; voted: boolean; flagged: boolean;
-  onVote: () => void; onFlag: () => void; onDelete: () => void;
+function ThreadCard({ t, now, mine, voted, flagged, onVote, onFlag, onDelete, onPickAirport }: {
+  t: Thread; now: number; mine: boolean; voted: boolean; flagged: boolean;
+  onVote: () => void; onFlag: () => void; onDelete: () => void; onPickAirport: (code: string) => void;
 }) {
   return (
     <article className="post">
-      <Avatar name={r.author_name || r.author_username} color={colorFor(r.author_username)} size={38} />
+      <Avatar name={t.author_name || t.author_username} color={colorFor(t.author_username)} size={38} />
       <div className="post-main">
         <div className="post-head">
-          <b>@{r.author_username}</b>
-          <span className="muted">{ago(r.created_at, now)}</span>
+          <b>@{t.author_username}</b>
+          <span className="muted">{ago(t.created_at, now)}</span>
           <span className="spacer" />
-          {r.airport && <Tags tags={[r.airport]} />}
+          <Tags tags={t.airports} onPick={onPickAirport} />
         </div>
-        <h3>{r.title}</h3>
-        {r.body && <p>{r.body}</p>}
+        <h3><Link href={`/news/${t.id}`} className="thread-link">{t.title}</Link></h3>
+        {t.body && <p className="clamp3">{t.body}</p>}
         <div className="post-actions">
-          <button className="pill" aria-pressed={voted} onClick={onVote}>▲ Helpful · {r.helpful}</button>
+          <button className="pill" aria-pressed={voted} onClick={onVote}>▲ Helpful · {t.helpful}</button>
+          <Link href={`/news/${t.id}`} className="pill" style={{ textDecoration: "none", color: "inherit" }}>
+            💬 {t.comment_count === 1 ? "1 comment" : `${t.comment_count} comments`}
+          </Link>
           {mine ? (
             <button className="pill ghost" onClick={onDelete}>Delete</button>
           ) : (
@@ -121,8 +64,8 @@ function Report({ r, now, mine, voted, flagged, onVote, onFlag, onDelete }: {
   );
 }
 
-function ReportForm({ onClose, onPost }: { onClose: () => void; onPost: (airport: string, title: string, body: string) => Promise<string | null> }) {
-  const [airport, setAirport] = useState("");
+function ThreadForm({ onClose, onPost }: { onClose: () => void; onPost: (airports: string[], title: string, body: string) => Promise<string | null> }) {
+  const [airports, setAirports] = useState<string[]>([]);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -130,29 +73,29 @@ function ReportForm({ onClose, onPost }: { onClose: () => void; onPost: (airport
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (title.trim().length < 3) return setError("Give your report a short title (at least 3 characters).");
+    if (title.trim().length < 3) return setError("Give your thread a short title (at least 3 characters).");
     setBusy(true);
     setError(null);
-    const err = await onPost(airport, title.trim(), body.trim());
+    const err = await onPost(airports, title.trim(), body.trim());
     if (err) { setError(err); setBusy(false); }
   };
 
   return (
-    <Sheet title="Post a report" onClose={onClose}>
+    <Sheet title="Start a thread" onClose={onClose}>
       <form className="form" onSubmit={submit} noValidate>
-        <p className="form-hint">Share what you see: a diversion, a delay, a rare visitor, airport news. Reports are visible to everyone on Wingmates.</p>
-        <AirportPicker label="Airport" optional value={airport} onPick={setAirport} />
+        <p className="form-hint">Share what you see: a diversion, a delay, a rare visitor, airport news. Anyone on Wingmates can read it and reply.</p>
         <label>
-          <span>Title <small>{title.length}/120</small></span>
-          <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} />
+          <span>Title <small>{title.length}/{TITLE_MAX}</small></span>
+          <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={TITLE_MAX} />
         </label>
         <label>
-          <span>Details <small>optional · {body.length}/500</small></span>
-          <textarea className="input" rows={4} value={body} onChange={(e) => setBody(e.target.value)} maxLength={500} />
+          <span>Details <small>optional · {body.length}/{BODY_MAX}</small></span>
+          <textarea className="input" rows={5} value={body} onChange={(e) => setBody(e.target.value)} maxLength={BODY_MAX} />
         </label>
+        <AirportTags value={airports} onChange={setAirports} />
         {error && <p className="msg err" role="alert">{error}</p>}
         <div className="form-actions">
-          <button type="submit" className="btn primary" disabled={busy}>{busy ? "Posting…" : "Post report"}</button>
+          <button type="submit" className="btn primary" disabled={busy}>{busy ? "Posting…" : "Post thread"}</button>
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
         </div>
       </form>
@@ -166,14 +109,14 @@ export function NewsView() {
   const me = useMe();
   const supabase = useSupabase();
 
-  const [feed, setFeed] = useState<NewsRow[]>([]);
-  const [reports, setReports] = useState<ReportRow[]>([]);
+  const [threads, setThreads] = useState<Thread[]>([]);
   const [voted, setVoted] = useState<Set<string>>(new Set());
   const [flagged, setFlagged] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<Filter>("all");
+  const [sort, setSort] = useState<Sort>("hot");
   const [mine, setMine] = useState(false);
+  const [airport, setAirport] = useState(""); // show only threads tagged with this airport
   const [posting, setPosting] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
@@ -181,18 +124,15 @@ export function NewsView() {
     if (!me.id) return;
     let alive = true;
     (async () => {
-      const [n, r, v, f] = await Promise.all([
-        supabase.from("news_items").select("*").order("published_at", { ascending: false }).limit(60),
-        supabase.from("reports").select("*").order("created_at", { ascending: false }).limit(60),
+      const [r, v, f] = await Promise.all([
+        supabase.from("reports").select(THREAD_COLUMNS).order("created_at", { ascending: false }).limit(200),
         supabase.from("report_votes").select("report_id"),
         supabase.from("report_flags").select("report_id"),
       ]);
       if (!alive) return;
-      const err = n.error ?? r.error;
-      if (err) setError(err.message);
+      if (r.error) setError(r.error.message);
       else {
-        setFeed((n.data ?? []) as NewsRow[]);
-        setReports((r.data ?? []) as ReportRow[]);
+        setThreads((r.data ?? []) as Thread[]);
         setVoted(new Set((v.data ?? []).map((x) => x.report_id as string)));
         setFlagged(new Set((f.data ?? []).map((x) => x.report_id as string)));
         setError(null);
@@ -209,16 +149,21 @@ export function NewsView() {
     [profile.homePlace, flights]
   );
 
-  const alerts = useMemo(() => feed.filter((n) => n.kind === "alert" && (!mine || n.tags.some((t) => myAirports.has(t)))), [feed, mine, myAirports]);
-  const headlines = useMemo(() => feed.filter((n) => n.kind === "headline" && (!mine || n.tags.some((t) => myAirports.has(t)))), [feed, mine, myAirports]);
-  const posts = useMemo(() => reports.filter((r) => !mine || (r.airport && myAirports.has(r.airport))), [reports, mine, myAirports]);
+  // summaries built from volume: which airports are busy right now, and which threads people are reacting to
+  const spots = useMemo(() => hotspots(threads, now), [threads, now]);
+  const hot = useMemo(() => trending(threads, now), [threads, now]);
 
-  const show = (k: Exclude<Filter, "all">) => filter === "all" || filter === k;
+  const list = useMemo(() => {
+    const f = threads.filter((t) => (!mine || t.airports.some((c) => myAirports.has(c))) && (!airport || t.airports.includes(airport)));
+    if (sort === "new") return [...f].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+    if (sort === "top") return [...f].sort((a, b) => activity(b) - activity(a) || Date.parse(b.created_at) - Date.parse(a.created_at));
+    return [...f].sort((a, b) => hotScore(b, now) - hotScore(a, now));
+  }, [threads, mine, myAirports, airport, sort, now]);
 
-  const post = async (airport: string, title: string, body: string) => {
-    const { data, error: e } = await supabase.from("reports").insert({ airport: airport || null, title, body }).select("*").single();
+  const post = async (airports: string[], title: string, body: string) => {
+    const { data, error: e } = await supabase.from("reports").insert({ airports, title, body }).select(THREAD_COLUMNS).single();
     if (e) return e.message;
-    setReports((r) => [data as ReportRow, ...r]);
+    setThreads((r) => [data as Thread, ...r]);
     setNow(Date.now());
     setPosting(false);
     return null;
@@ -227,94 +172,112 @@ export function NewsView() {
   const vote = async (id: string) => {
     const on = voted.has(id);
     setVoted((s) => { const n = new Set(s); if (on) n.delete(id); else n.add(id); return n; });
-    setReports((rs) => rs.map((r) => (r.id === id ? { ...r, helpful: Math.max(0, r.helpful + (on ? -1 : 1)) } : r)));
-    const { error: e } = on ? await supabase.from("report_votes").delete().eq("report_id", id) : await supabase.from("report_votes").insert({ report_id: id });
-    if (e) {
+    setThreads((rs) => rs.map((r) => (r.id === id ? { ...r, helpful: Math.max(0, r.helpful + (on ? -1 : 1)) } : r)));
+    if (await voteThread(supabase, id, on)) {
       setVoted((s) => { const n = new Set(s); if (on) n.add(id); else n.delete(id); return n; });
-      setReports((rs) => rs.map((r) => (r.id === id ? { ...r, helpful: Math.max(0, r.helpful + (on ? 1 : -1)) } : r)));
+      setThreads((rs) => rs.map((r) => (r.id === id ? { ...r, helpful: Math.max(0, r.helpful + (on ? 1 : -1)) } : r)));
     }
   };
   const flag = async (id: string) => {
     setFlagged((s) => new Set(s).add(id));
-    const { error: e } = await supabase.rpc("flag_report", { p_id: id });
-    if (e) setFlagged((s) => { const n = new Set(s); n.delete(id); return n; });
+    if (await flagThread(supabase, id)) setFlagged((s) => { const n = new Set(s); n.delete(id); return n; });
   };
   const del = async (id: string) => {
-    const { error: e } = await supabase.from("reports").delete().eq("id", id);
-    if (!e) setReports((rs) => rs.filter((r) => r.id !== id));
+    if (!(await deleteThread(supabase, id))) setThreads((rs) => rs.filter((r) => r.id !== id));
   };
 
-  const FILTERS: [Filter, string][] = [["all", "Everything"], ["alert", "Alerts"], ["headline", "Headlines"], ["report", "From the field"]];
+  const SORTS: [Sort, string][] = [["hot", "🔥 Hot"], ["new", "New"], ["top", "Top"]];
 
-  if (loading) return <div className="loading-block" role="status">Loading news…</div>;
+  if (loading) return <div className="loading-block" role="status">Loading threads…</div>;
 
   return (
     <>
-      {error && <p className="msg err" role="alert">Couldn’t load news: {error}</p>}
-      <div className="chip-bar" role="group" aria-label="Filter news">
-        {FILTERS.map(([f, label]) => (
-          <button key={f} className="chip-btn" aria-pressed={filter === f} onClick={() => setFilter(f)}>{label}</button>
+      {error && <p className="msg err" role="alert">Couldn’t load threads: {error}</p>}
+
+      <div className="section-bar" style={{ margin: "0 0 10px" }}>
+        <h2 className="sec" style={{ margin: 0 }}>Community threads <small>reported by Wingmates</small></h2>
+        <button className="btn primary" onClick={() => setPosting(true)}>＋ Start a thread</button>
+      </div>
+
+      {spots.length > 0 && !airport && (
+        <section aria-label="Developing now">
+          <h2 className="sec">Developing now <small>airports with the most reports in the last 24 hours</small></h2>
+          <div className="hotspots">
+            {spots.map((s) => (
+              <button key={s.code} type="button" className="hotspot" onClick={() => setAirport(s.code)} aria-label={`Show threads about ${s.code}`}>
+                <div className="hotspot-code mono">{s.code}<span>{AIRPORTS[s.code]?.city}</span></div>
+                <div className="hotspot-stats">
+                  <b>{s.threads.length}</b> {s.threads.length === 1 ? "report" : "reports"} · <b>{s.comments}</b> {s.comments === 1 ? "comment" : "comments"}
+                </div>
+                <p>Latest buzz: “{s.top.title}”</p>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {hot.length > 0 && !airport && (
+        <section aria-label="Trending threads">
+          <h2 className="sec">Trending <small>what people are reacting to</small></h2>
+          <div className="trending">
+            {hot.map((t, i) => (
+              <Link key={t.id} href={`/news/${t.id}`} className="trend-row">
+                <span className="trend-n">{i + 1}</span>
+                <span className="trend-main">
+                  <b>{t.title}</b>
+                  <span className="muted">▲ {t.helpful} · 💬 {t.comment_count}{t.airports.length > 0 ? ` · ${t.airports.join(", ")}` : ""}</span>
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <div className="chip-bar" role="group" aria-label="Sort and filter threads" style={{ marginTop: 16 }}>
+        {SORTS.map(([s, label]) => (
+          <button key={s} className="chip-btn" aria-pressed={sort === s} onClick={() => setSort(s)}>{label}</button>
         ))}
         <button className="chip-btn mine" aria-pressed={mine} onClick={() => setMine((m) => !m)}>★ My airports</button>
       </div>
 
-      {show("alert") && (
-        <section aria-label="Airport status">
-          <h2 className="sec">Airport status <small>live</small></h2>
-          {alerts.length > 0 ? (
-            <div className={`board ${filter === "alert" ? "wrap" : ""}`}>{alerts.map((n) => <StatusTile key={n.id} n={n} now={now} />)}</div>
-          ) : (
-            <p className="muted empty-line">{mine ? "No alerts for your airports." : "Live airport alerts (ground stops, delays) are coming soon."}</p>
-          )}
-        </section>
-      )}
-
-      {show("headline") && (
-        <section aria-label="Headlines">
-          <h2 className="sec">Headlines</h2>
-          {headlines.length > 0 ? (
-            <>
-              <Featured n={headlines[0]} now={now} />
-              <div className="stories">{headlines.slice(1).map((n) => <Story key={n.id} n={n} now={now} />)}</div>
-            </>
-          ) : (
-            <p className="muted empty-line">{mine ? "No headlines for your airports." : "Aviation headlines are coming soon."}</p>
-          )}
-        </section>
-      )}
-
-      {show("report") && (
-        <section aria-label="Reports from the field">
-          <div className="section-bar" style={{ margin: "22px 0 10px" }}>
-            <h2 className="sec" style={{ margin: 0 }}>From the field <small>posted by Wingmates</small></h2>
-            <button className="btn primary" onClick={() => setPosting(true)}>＋ Post a report</button>
+      <div className="airport-filter">
+        {airport ? (
+          <div className="airport-filter-on">
+            <span>Showing threads about <b className="mono">{airport}</b>{AIRPORTS[airport] ? ` · ${AIRPORTS[airport].name}` : ""}</span>
+            <button className="linkish" onClick={() => setAirport("")}>Clear</button>
           </div>
-          {posts.length > 0 ? (
-            <div className="posts">
-              {posts.map((r) => (
-                <Report
-                  key={r.id}
-                  r={r}
-                  now={now}
-                  mine={r.user_id === me.id}
-                  voted={voted.has(r.id)}
-                  flagged={flagged.has(r.id)}
-                  onVote={() => vote(r.id)}
-                  onFlag={() => flag(r.id)}
-                  onDelete={() => del(r.id)}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="card empty">
-              <b>{mine ? "No reports for your airports yet" : "No reports yet"}</b>
-              <p className="muted" style={{ margin: "6px 0 0" }}>Be the first to share what you’re seeing at an airport.</p>
-            </div>
-          )}
-        </section>
+        ) : (
+          <AirportPicker label="Filter by airport" optional value="" onPick={setAirport} />
+        )}
+      </div>
+
+      {list.length > 0 ? (
+        <div className="posts" style={{ marginTop: 12 }}>
+          {list.map((t) => (
+            <ThreadCard
+              key={t.id}
+              t={t}
+              now={now}
+              mine={t.user_id === me.id}
+              voted={voted.has(t.id)}
+              flagged={flagged.has(t.id)}
+              onVote={() => vote(t.id)}
+              onFlag={() => flag(t.id)}
+              onDelete={() => del(t.id)}
+              onPickAirport={setAirport}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="card empty" style={{ marginTop: 12 }}>
+          <b>{airport || mine ? "No threads match" : "No threads yet"}</b>
+          <p className="muted" style={{ margin: "6px 0 0" }}>
+            {airport || mine ? "Try another airport, or clear the filters." : "Be the first to share what you’re seeing at an airport."}
+          </p>
+        </div>
       )}
 
-      {posting && <ReportForm onClose={() => setPosting(false)} onPost={post} />}
+      {posting && <ThreadForm onClose={() => setPosting(false)} onPost={post} />}
     </>
   );
 }
