@@ -1,8 +1,9 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { airportList } from "@/lib/airports";
 import { AIRPORTS } from "@/lib/core";
+import { useDropUp } from "@/lib/useDropUp";
 
 const KIND_RANK = { large: 0, medium: 1, small: 2 } as const;
 
@@ -13,6 +14,7 @@ export function AirportPicker({ label, value, onPick, optional }: { label: strin
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const all = useMemo(() => airportList(), []);
+  const field = useRef<HTMLDivElement>(null);
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -34,6 +36,7 @@ export function AirportPicker({ label, value, onPick, optional }: { label: strin
       .map(([a]) => a);
   }, [all, query]);
 
+  const up = useDropUp(field, open, matches.length + query);
   const shown = value && AIRPORTS[value] ? `${value} · ${AIRPORTS[value].city}` : "";
   const choose = (code: string) => { onPick(code); setQuery(""); setOpen(false); };
 
@@ -47,6 +50,7 @@ export function AirportPicker({ label, value, onPick, optional }: { label: strin
   return (
     <div className="combo">
       <label htmlFor={id}><span>{label}{optional && <small> optional</small>}</span></label>
+      <div className="combo-field" ref={field}>
       <input
         id={id}
         className="input"
@@ -64,7 +68,7 @@ export function AirportPicker({ label, value, onPick, optional }: { label: strin
         onKeyDown={onKey}
       />
       {open && (
-        <ul className="combo-list" id={`${id}-list`} role="listbox" aria-label={`${label} results`}>
+        <ul className={`combo-list${up ? " up" : ""}`} id={`${id}-list`} role="listbox" aria-label={`${label} results`}>
           {!query.trim() && <li className="combo-empty">Type a code (ORD), city, or airport name.</li>}
           {query.trim() && matches.length === 0 && <li className="combo-empty">No airport matches “{query.trim()}”.</li>}
           {matches.map((a, i) => (
@@ -83,6 +87,7 @@ export function AirportPicker({ label, value, onPick, optional }: { label: strin
           ))}
         </ul>
       )}
+      </div>
     </div>
   );
 }

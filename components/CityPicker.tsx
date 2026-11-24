@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { searchCities, type Place } from "@/lib/cities";
+import { useDropUp } from "@/lib/useDropUp";
 
 /** Type-ahead city search. The value is always a place the search returned, never free text. */
 export function CityPicker({ id, value, onPick, label = "Home city" }: { id?: string; value: string; onPick: (place: Place) => void; label?: string }) {
@@ -46,9 +47,12 @@ export function CityPicker({ id, value, onPick, label = "Home city" }: { id?: st
   };
 
   const q = query.trim();
+  const field = useRef<HTMLDivElement>(null);
+  const up = useDropUp(field, open, results.length + status);
   return (
     <div className="combo">
       <label htmlFor={inputId}><span>{label}</span></label>
+      <div className="combo-field" ref={field}>
       <input
         id={inputId}
         className="input"
@@ -67,7 +71,7 @@ export function CityPicker({ id, value, onPick, label = "Home city" }: { id?: st
         onKeyDown={onKey}
       />
       {open && (
-        <ul className="combo-list" id={listId} role="listbox" aria-label={`${label} results`}>
+        <ul className={`combo-list${up ? " up" : ""}`} id={listId} role="listbox" aria-label={`${label} results`}>
           {q.length < 2 && <li className="combo-empty">Type at least 2 letters of a city or town.</li>}
           {q.length >= 2 && status === "loading" && results.length === 0 && <li className="combo-empty">Searching…</li>}
           {status === "error" && <li className="combo-empty">Couldn’t reach city search. Check your connection and try again.</li>}
@@ -88,6 +92,7 @@ export function CityPicker({ id, value, onPick, label = "Home city" }: { id?: st
           <li className="combo-credit" aria-hidden="true">Search by Open-Meteo · GeoNames</li>
         </ul>
       )}
+      </div>
     </div>
   );
 }
