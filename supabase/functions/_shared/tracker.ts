@@ -51,10 +51,10 @@ export const T = {
   /** moving at least this fast and not flagged as on the ground = flying (a plane taxiing or parked never is) */
   FLYING_KT: 100,
   /** "in flight" starts once the plane is both this high above the field and this far from the departure airport */
-  AIRBORNE_AGL_FT: 1000,
-  AIRBORNE_MIN_MI: 5,
+  AIRBORNE_AGL_FT: 500,
+  AIRBORNE_MIN_MI: 3,
   /** when the field's height isn't known, use distance alone (further out, since altitude can't be judged) */
-  AIRBORNE_MIN_MI_UNKNOWN_ELEV: 8,
+  AIRBORNE_MIN_MI_UNKNOWN_ELEV: 5,
   /** a rejected takeoff (back on the ground at the origin) is only believed within this long after "takeoff" */
   TAKEOFF_GRACE_MS: 5 * 60_000,
   /** a landed plane that hasn't been heard from for this long is done: stop asking about it */

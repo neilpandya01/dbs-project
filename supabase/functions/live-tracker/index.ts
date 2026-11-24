@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
       // the registration found nothing: ask for its callsigns right away instead of waiting for the next poll
       if (byRegistration && sightings && mine.length === 0 && i.callsigns.length) { i.regMissed = true; continue; }
       i.regMissed = false;
-      i.polledAt = Date.now();
+      i.polledAt = began; // measured from when the request started, so the beat is a true 2 seconds
       if (!sightings) continue;
       i.state = step(i.state, pickSighting(mine, i.from, i.to, i.state, i.callsigns), i.from, i.to, Date.now());
       dirty.push({

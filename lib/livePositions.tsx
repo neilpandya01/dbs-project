@@ -25,7 +25,7 @@ const toPos = (r: Row): LivePos | null =>
 
 const HEARTBEAT_MS = 30_000;
 const REFRESH_MS = 15_000; // while the map is open: ask the server to re-check the planes, then re-read
-const READ_MS = 3_000; // re-read saved positions this often (just a database read; the tracker may have written new ones)
+const READ_MS = 2_000; // re-read saved positions this often (just a database read; the tracker may have written new ones)
 
 /**
  * Real positions of airborne flights, for you and your friends (the database only returns what you're allowed to see).

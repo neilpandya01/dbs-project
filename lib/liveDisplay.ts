@@ -22,12 +22,12 @@ export function livePhase(p: LivePos, from: LngLat, to: LngLat, nowMs: number): 
   return null;
 }
 
-/** "At the gate", "Taxiing", "In the air"... for a live plane. */
+/** "At the gate", "Taxiing", "Arrived", "In the air"... for a live plane. */
 export function phaseLabel(phase: Phase, p: LivePos) {
   if (phase === "airborne") return "In the air";
   const moving = (p.speedKt ?? 0) >= 5;
   if (phase === "departure") return p.onGround ? (moving ? "Taxiing out" : "At the gate") : "Departing";
-  return moving ? "Taxiing in" : "At the gate";
+  return moving ? "Taxiing in" : "Arrived";
 }
 
 /** How far along the route a real position is: the share of the (from -> here -> to) distance already flown. */

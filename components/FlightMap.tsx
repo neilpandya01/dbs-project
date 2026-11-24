@@ -10,7 +10,9 @@ import { textOn } from "./Avatar";
 
 export type MapRoute = { id: string; from: string; to: string; color?: string; highlight?: boolean; progress?: number;
   /** The aircraft's real position. When set, the solid line runs origin -> here and the dotted line here -> destination, so a plane that has veered off the direct route is drawn where it really is. */
-  pos?: LngLat };
+  pos?: LngLat;
+  /** With `pos`: draw only the dotted line from the plane to the destination (a plane still on the ground has flown nowhere, so no solid line). */
+  aheadOnly?: boolean };
 export type MapAirport = { code: string; kind: "me" | "friend" | "both" };
 export type MapPlane = { id: string; label: string; name: string; color: string; from: string; to: string; progress: number;
   /** The aircraft's real position and heading, when the live tracker has one. Otherwise it sits on the route line by progress. */
@@ -27,18 +29,29 @@ type Feature = { type: "Feature"; properties: Record<string, string | number>; g
 
 const STEPS = 200;
 
+const isDark = () => typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+/** Mix a #rrggbb colour with white so it stands out on a dark map. Other formats are returned unchanged. */
+function lighten(hex: string, amount = 0.38) {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return hex;
+  const c = [0, 2, 4].map((i) => Math.round(parseInt(m[1].slice(i, i + 2), 16) + (255 - parseInt(m[1].slice(i, i + 2), 16)) * amount));
+  return `#${c.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+const routeColor = (c: string | undefined, dark: boolean) => (dark ? lighten(c ?? "#1f7ff0") : c ?? "#1f7ff0");
+
 function routeLine(from: string, to: string) {
   return greatCircleLine(AIRPORTS[from].lngLat, AIRPORTS[to].lngLat, STEPS);
 }
 
-function routesToGeoJSON(routes: MapRoute[]) {
+function routesToGeoJSON(routes: MapRoute[], dark = isDark()) {
   const features: Feature[] = [];
   for (const r of routes) {
     const line = routeLine(r.from, r.to);
-    const base = { id: r.id, color: r.color ?? "#1f7ff0", highlight: r.highlight ? 1 : 0 };
+    const base = { id: r.id, color: routeColor(r.color, dark), highlight: r.highlight ? 1 : 0 };
     if (r.pos) {
       const a = AIRPORTS[r.from].lngLat, b = AIRPORTS[r.to].lngLat;
-      features.push({ type: "Feature", properties: { ...base, part: "flown", arrows: 1 }, geometry: { type: "LineString", coordinates: greatCircleLine(a, r.pos, 80) } });
+      if (!r.aheadOnly) features.push({ type: "Feature", properties: { ...base, part: "flown", arrows: 1 }, geometry: { type: "LineString", coordinates: greatCircleLine(a, r.pos, 80) } });
       features.push({ type: "Feature", properties: { ...base, part: "rest", arrows: 0 }, geometry: { type: "LineString", coordinates: greatCircleLine(r.pos, b, 80) } });
     } else if (r.progress == null) {
       features.push({ type: "Feature", properties: { ...base, part: "all", arrows: r.highlight ? 1 : 0 }, geometry: { type: "LineString", coordinates: line } });
@@ -94,17 +107,26 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const ready = useRef(false);
-  const markers = useRef<maplibregl.Marker[]>([]);
+  /** one marker per plane, kept between updates so it can glide from where it was to where it now is */
+  type PlaneMarker = { marker: maplibregl.Marker; node: HTMLButtonElement; key: string; from: LngLat; to: LngLat; cur: LngLat; t0: number };
+  const planeMarkers = useRef(new Map<string, PlaneMarker>());
+  const raf = useRef<number | null>(null);
+  const lastRouteDraw = useRef(0);
   const latest = useRef({ routes, planes, selectedPlane, onSelectPlane, airports, onSelectAirport });
   latest.current = { routes, planes, selectedPlane, onSelectPlane, airports, onSelectAirport };
 
   const drawRoutes = () => {
     const m = map.current;
     if (!m || !ready.current) return;
-    const data = routesToGeoJSON(latest.current.routes);
-    new Set(latest.current.routes.map((r) => r.color ?? "#1f7ff0")).forEach((c) => ensureArrow(m, c));
+    const dark = isDark();
+    // a plane's route line follows the plane's gliding marker, not just its last saved position
+    const live = latest.current.routes.map((r) => {
+      const pm = r.pos ? planeMarkers.current.get(r.id) : undefined;
+      return pm ? { ...r, pos: pm.cur } : r;
+    });
+    new Set(live.map((r) => routeColor(r.color, dark))).forEach((c) => ensureArrow(m, c));
     const src = m.getSource("routes") as maplibregl.GeoJSONSource | undefined;
-    if (src) src.setData(data);
+    if (src) src.setData(routesToGeoJSON(live, dark));
   };
 
   const drawAirports = () => {
@@ -113,47 +135,81 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
     (m.getSource("airports") as maplibregl.GeoJSONSource | undefined)?.setData(airportsToGeoJSON(latest.current.airports));
   };
 
+  const GLIDE_MS = 2400; // a new position is reached over about one update interval, so the plane keeps moving
+
+  const animate = () => {
+    if (raf.current != null) return;
+    const step = (t: number) => {
+      raf.current = null;
+      let moving = false;
+      for (const pm of planeMarkers.current.values()) {
+        const k = Math.min(1, (t - pm.t0) / GLIDE_MS);
+        if (k < 1) moving = true;
+        pm.cur = [pm.from[0] + (pm.to[0] - pm.from[0]) * k, pm.from[1] + (pm.to[1] - pm.from[1]) * k];
+        pm.marker.setLngLat(pm.cur);
+      }
+      if (t - lastRouteDraw.current > 66) { lastRouteDraw.current = t; drawRoutes(); } // route lines follow, ~15 times a second
+      if (moving) raf.current = requestAnimationFrame(step);
+      else drawRoutes();
+    };
+    raf.current = requestAnimationFrame(step);
+  };
+
   const drawMarkers = () => {
     const m = map.current;
     if (!m) return;
-    markers.current.forEach((x) => x.remove());
-    markers.current = [];
-    const { planes, selectedPlane, onSelectPlane } = latest.current;
+    const { planes, selectedPlane } = latest.current;
+    const now = performance.now();
+    const keep = new Set<string>();
     for (const p of planes) {
+      keep.add(p.id);
       const onLine = linePoint(routeLine(p.from, p.to), p.progress);
-      const pos = p.pos ?? onLine.pos;
+      const pos = (p.pos ?? onLine.pos) as LngLat;
       const heading = p.heading ?? onLine.heading;
-      const node = document.createElement("button");
-      node.className = "plane-marker" + (p.id === selectedPlane ? " selected" : "");
-      node.setAttribute("aria-label", `${p.name} in flight, heading ${Math.round(heading)} degrees`);
-      // Built with DOM calls and textContent, never innerHTML: the label is a person's display name,
-      // which another user controls, so it must never be parsed as HTML.
       const color = /^#[0-9a-f]{3,8}$/i.test(p.color) ? p.color : "#1f7ff0";
-      // The marker is the person's profile picture (or their initials on their colour), ringed in their colour.
-      const face = document.createElement("span");
-      face.className = "plane-face";
-      face.style.setProperty("--c", color);
-      face.style.background = color;
-      face.style.color = textOn(color);
-      if (p.photo && /^(data:image\/|https:\/\/)/.test(p.photo)) {
-        const img = document.createElement("img");
-        img.alt = "";
-        img.src = p.photo;
-        face.appendChild(img);
-      } else {
-        face.textContent = p.name.split(/[\s,.]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+      const key = `${p.name}|${p.label}|${color}|${p.photo ?? ""}`;
+      let pm = planeMarkers.current.get(p.id);
+      if (pm && pm.key !== key) { pm.marker.remove(); planeMarkers.current.delete(p.id); pm = undefined; } // their picture or name changed: rebuild
+      if (!pm) {
+        const node = document.createElement("button");
+        // Built with DOM calls and textContent, never innerHTML: the label is a person's display name,
+        // which another user controls, so it must never be parsed as HTML.
+        // The marker is the person's profile picture (or their initials on their colour), ringed in their colour.
+        const face = document.createElement("span");
+        face.className = "plane-face";
+        face.style.setProperty("--c", color);
+        face.style.background = color;
+        face.style.color = textOn(color);
+        if (p.photo && /^(data:image\/|https:\/\/)/.test(p.photo)) {
+          const img = document.createElement("img");
+          img.alt = "";
+          img.src = p.photo;
+          face.appendChild(img);
+        } else {
+          face.textContent = p.name.split(/[\s,.]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+        }
+        const tag = document.createElement("span");
+        tag.className = "plane-tag";
+        tag.style.setProperty("--c", color);
+        tag.textContent = p.label;
+        node.append(face, tag);
+        node.addEventListener("click", (e) => {
+          e.stopPropagation();
+          latest.current.onSelectPlane?.(p.id);
+        });
+        const marker = new maplibregl.Marker({ element: node }).setLngLat(pos).addTo(m);
+        pm = { marker, node, key, from: pos, to: pos, cur: pos, t0: now };
+        planeMarkers.current.set(p.id, pm);
+      } else if (pm.to[0] !== pos[0] || pm.to[1] !== pos[1]) {
+        pm.from = pm.cur; // glide on from wherever the marker is right now
+        pm.to = pos;
+        pm.t0 = now;
       }
-      const tag = document.createElement("span");
-      tag.className = "plane-tag";
-      tag.style.setProperty("--c", color);
-      tag.textContent = p.label;
-      node.append(face, tag);
-      node.addEventListener("click", (e) => {
-        e.stopPropagation();
-        onSelectPlane?.(p.id);
-      });
-      markers.current.push(new maplibregl.Marker({ element: node }).setLngLat(pos as LngLat).addTo(m));
+      pm.node.className = "plane-marker" + (p.id === selectedPlane ? " selected" : "");
+      pm.node.setAttribute("aria-label", `${p.name} in flight, heading ${Math.round(heading)} degrees`);
     }
+    for (const [id, pm] of planeMarkers.current) if (!keep.has(id)) { pm.marker.remove(); planeMarkers.current.delete(id); }
+    animate();
   };
 
   // create the map once
@@ -179,9 +235,18 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
     if (interactive) m.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
     const setup = () => {
-      new Set(latest.current.routes.map((r) => r.color ?? "#1f7ff0")).forEach((c) => ensureArrow(m, c));
+      new Set(latest.current.routes.map((r) => routeColor(r.color, dark.matches))).forEach((c) => ensureArrow(m, c));
       if (!m.getSource("routes")) {
         m.addSource("routes", { type: "geojson", data: routesToGeoJSON(latest.current.routes) });
+        // a light edge under the lines, used on the dark map so the colours don't sink into it
+        m.addLayer({
+          id: "routes-casing",
+          type: "line",
+          source: "routes",
+          filter: ["!=", ["get", "part"], "rest"],
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: { "line-color": "#ffffff", "line-width": ["case", ["==", ["get", "part"], "flown"], 8, 6], "line-opacity": 0 },
+        });
         m.addLayer({
           id: "routes-rest",
           type: "line",
@@ -249,7 +314,26 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
           paint: { "text-color": "#0d2340", "text-halo-color": "#ffffff", "text-halo-width": 1.6 },
         });
       }
+      applyTheme(m, dark.matches);
       ready.current = true;
+    };
+
+    // Colours that read well on each map: on the dark one, lighter lines with a pale edge, stronger dotted
+    // lines, and light airport labels with a dark outline.
+    const applyTheme = (map: maplibregl.Map, isDarkMap: boolean) => {
+      if (map.getLayer("routes-casing")) map.setPaintProperty("routes-casing", "line-opacity", isDarkMap ? 0.55 : 0);
+      if (map.getLayer("routes-rest")) {
+        map.setPaintProperty("routes-rest", "line-opacity", isDarkMap ? 0.95 : 0.55);
+        map.setPaintProperty("routes-rest", "line-width", isDarkMap ? 3.6 : 3);
+      }
+      if (map.getLayer("routes-line")) {
+        map.setPaintProperty("routes-line", "line-opacity", ["case", ["==", ["get", "part"], "all"], ["case", ["==", ["get", "highlight"], 1], 1, isDarkMap ? 0.9 : 0.55], 1]);
+      }
+      if (map.getLayer("airports-label")) {
+        map.setPaintProperty("airports-label", "text-color", isDarkMap ? "#eaf3ff" : "#0d2340");
+        map.setPaintProperty("airports-label", "text-halo-color", isDarkMap ? "#0b1b33" : "#ffffff");
+      }
+      if (map.getLayer("airports-dot")) map.setPaintProperty("airports-dot", "circle-stroke-width", isDarkMap ? 2.5 : 2);
     };
     m.on("style.load", setup);
     m.on("click", "airports-dot", (e) => {
@@ -277,7 +361,10 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
 
     return () => {
       dark.removeEventListener("change", onScheme);
-      markers.current.forEach((x) => x.remove());
+      if (raf.current != null) cancelAnimationFrame(raf.current);
+      raf.current = null;
+      planeMarkers.current.forEach((pm) => pm.marker.remove());
+      planeMarkers.current.clear();
       m.remove();
       map.current = null;
       ready.current = false;

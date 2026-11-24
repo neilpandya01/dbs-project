@@ -173,8 +173,6 @@ export function MapView() {
     });
   }, [ITEMS, mode, query]);
 
-  // At the departure airport the planned route is drawn plain; in flight it's solid to the plane and dotted from it;
-  // at the arrival airport there's no route (the flight is over).
   const routes: MapRoute[] = (() => {
     const out: MapRoute[] = [];
     const seen = new Set<string>();
@@ -190,8 +188,11 @@ export function MapView() {
       } else {
         out.push({
           id: i.id, from: i.from, to: i.to, color: i.color, highlight: i.id === selected,
+          // in flight: solid to the plane, dotted onward. On the ground at the departure airport: only the dotted line
+          // onward from where the plane is (it hasn't gone anywhere yet). Nothing at all once it has arrived.
           progress: i.live?.phase === "airborne" ? i.live.progress : undefined,
-          pos: i.live?.phase === "airborne" ? ([i.live.real.lon, i.live.real.lat] as [number, number]) : undefined,
+          pos: i.live ? ([i.live.real.lon, i.live.real.lat] as [number, number]) : undefined,
+          aheadOnly: i.live?.phase === "departure",
         });
       }
     }
