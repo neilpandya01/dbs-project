@@ -43,40 +43,52 @@ function ThreadCard({ t, now, mine, friend, voted, flagged, onVote, onFlag, onEd
   onVote: () => void; onFlag: () => void; onEdit: () => void; onDelete: () => void; onPickAirport: (code: string) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const pick = (fn: () => void) => () => { setMenu(false); fn(); };
   return (
     <article className={`post${mine ? " mine" : ""}`}>
-      <UserLink username={t.author_username}><Avatar name={t.author_name || t.author_username} color={colorFor(t.author_username)} size={38} /></UserLink>
-      <div className="post-main">
-        <div className="post-head">
-          <UserLink username={t.author_username}><b>@{t.author_username}</b></UserLink>
-          {mine && <YouTag />}
-          {friend && <span className="badge accent">Friend</span>}
-          {t.friends_only && <span className="badge" title="Only the author and their friends can see this thread">🔒 Friends only</span>}
-          <span className="muted">{ago(t.created_at, now)}{t.edited_at ? " · edited" : ""}</span>
-          <span className="spacer" />
-          <Tags tags={t.airports} onPick={onPickAirport} />
+      <div className="post-top">
+        <UserLink username={t.author_username}><Avatar name={t.author_name || t.author_username} color={colorFor(t.author_username)} size={40} /></UserLink>
+        <div className="post-who">
+          <div className="post-name">
+            <UserLink username={t.author_username}><b>@{t.author_username}</b></UserLink>
+            {mine && <YouTag />}
+            {friend && <span className="badge accent">Friend</span>}
+          </div>
+          <span className="muted post-time">{ago(t.created_at, now)}{t.edited_at ? " · edited" : ""}{t.friends_only && <span title="Only the author and their friends can see this thread"> · 🔒 Friends only</span>}</span>
         </div>
-        <h3><Link href={`/news/${t.id}`} className="thread-link">{t.title}</Link></h3>
-        {t.body && <p className="clamp3">{t.body}</p>}
-        <Photos images={t.images} />
-        <div className="post-actions">
-          <button className="pill" aria-pressed={voted} onClick={onVote}>▲ Helpful · {t.helpful}</button>
-          <Link href={`/news/${t.id}`} className="pill" style={{ textDecoration: "none", color: "inherit" }}>
-            💬 {t.comment_count === 1 ? "1 comment" : `${t.comment_count} comments`}
-          </Link>
-          {mine ? (
-            <>
-              <button className="pill ghost" onClick={onEdit}>Edit</button>
-              <button className="pill ghost" onClick={() => setConfirming(true)} aria-pressed={confirming}>Delete</button>
-            </>
-          ) : (
-            <button className="pill ghost" aria-pressed={flagged} onClick={onFlag} title={flagged ? "Take your flag back" : "Report this thread"}>{flagged ? "Flagged · Undo" : "Flag"}</button>
-          )}
-        </div>
-        {confirming && (
-          <ConfirmDelete title="Delete this thread?" detail="Its comments and photos will be deleted too. This can’t be undone." onConfirm={onDelete} onCancel={() => setConfirming(false)} />
-        )}
+        <div className="post-tags"><Tags tags={t.airports} onPick={onPickAirport} /></div>
       </div>
+      <h3><Link href={`/news/${t.id}`} className="thread-link">{t.title}</Link></h3>
+      {t.body && <p className="clamp3">{t.body}</p>}
+      <Photos images={t.images} />
+      <div className="post-actions">
+        <button className="pill" aria-pressed={voted} onClick={onVote}>▲ Helpful · {t.helpful}</button>
+        <Link href={`/news/${t.id}`} className="pill" style={{ textDecoration: "none", color: "inherit" }}>
+          💬 {t.comment_count === 1 ? "1 comment" : `${t.comment_count} comments`}
+        </Link>
+        <span className="more-wrap">
+          <button className="pill ghost more-btn" onClick={() => setMenu((m) => !m)} aria-haspopup="menu" aria-expanded={menu} aria-label="More actions">⋯</button>
+          {menu && (
+            <>
+              <div className="more-scrim" onClick={() => setMenu(false)} />
+              <div className="more-menu" role="menu">
+                {mine ? (
+                  <>
+                    <button role="menuitem" onClick={pick(onEdit)}>Edit</button>
+                    <button role="menuitem" className="danger" onClick={pick(() => setConfirming(true))}>Delete</button>
+                  </>
+                ) : (
+                  <button role="menuitem" onClick={pick(onFlag)}>{flagged ? "Flagged · Undo" : "Flag this thread"}</button>
+                )}
+              </div>
+            </>
+          )}
+        </span>
+      </div>
+      {confirming && (
+        <ConfirmDelete title="Delete this thread?" detail="Its comments and photos will be deleted too. This can’t be undone." onConfirm={onDelete} onCancel={() => setConfirming(false)} />
+      )}
     </article>
   );
 }
@@ -212,7 +224,7 @@ export function NewsView() {
             <button key={s} className="chip-btn" aria-pressed={scope === s} onClick={() => setScope(s)}>{label}</button>
           ))}
         </div>
-        <button className="btn primary" onClick={() => setForm({ thread: null })}>＋ Start a thread</button>
+        <button className="btn primary start-thread" onClick={() => setForm({ thread: null })}>＋ Start a thread</button>
       </div>
 
       {scope === "comments" ? (

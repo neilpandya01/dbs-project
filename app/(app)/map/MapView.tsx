@@ -303,48 +303,52 @@ export function MapView() {
           <li><i style={{ background: AIRPORT_COLORS.both }} /><i className="line" style={{ background: AIRPORT_COLORS.both }} />You &amp; friends</li>
         </ul>
         {apt && (
-          <div className="card map-overlay">
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-              <div>
-                <b className="mono">{apt.code} · {apt.info.city}</b>
-                <div style={{ fontSize: 13 }}>{apt.info.name}</div>
-                <div className="muted" style={{ fontSize: 13 }}>{apt.info.country}</div>
+          <div className="card map-overlay detail-card" role="dialog" aria-label={`${apt.info.name} details`}>
+            <span className="detail-grab" aria-hidden="true" />
+            <div className="detail-head">
+              <span className="detail-code mono">{apt.code}</span>
+              <div className="detail-title">
+                <b>{apt.info.name}</b>
+                <span className="muted">{apt.info.city}, {apt.info.country}</span>
               </div>
-              <button className="btn small" style={{ alignSelf: "flex-start" }} onClick={() => setAirport(null)} aria-label="Close details">✕</button>
+              <button className="icon-btn" onClick={() => setAirport(null)} aria-label="Close details">✕</button>
             </div>
-            <div style={{ marginTop: 10, fontSize: 14, display: "grid", gap: 4 }}>
-              {apt.v.me > 0 && <span><b>You</b> · {apt.v.me} visit{apt.v.me > 1 ? "s" : ""}</span>}
-              {apt.v.friends.length > 0 && <span><b>Friends</b> · {apt.v.friends.join(", ")}</span>}
+            <div className="detail-rows">
+              {apt.v.me > 0 && (
+                <div className="detail-row"><i style={{ background: AIRPORT_COLORS.me }} /><span><b>You</b> · {apt.v.me} visit{apt.v.me > 1 ? "s" : ""}</span></div>
+              )}
+              {apt.v.friends.length > 0 && (
+                <div className="detail-row"><i style={{ background: AIRPORT_COLORS.friend }} /><span><b>Friends</b> · {apt.v.friends.join(", ")}</span></div>
+              )}
             </div>
           </div>
         )}
         {sel && !apt && (
-          <div className="card map-overlay">
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-              <div>
-                <b className="mono">{AIRPORTS[sel.from].city} → {AIRPORTS[sel.to].city}</b>
-                <div className="muted" style={{ fontSize: 13 }}>{sel.owner === "You" ? "You" : sel.owner} · {sel.sub}</div>
+          <div className="card map-overlay detail-card" role="dialog" aria-label="Flight details">
+            <span className="detail-grab" aria-hidden="true" />
+            <div className="detail-head">
+              <div className="detail-title">
+                <b className="mono detail-route">{sel.from} → {sel.to}</b>
+                <span className="muted">{AIRPORTS[sel.from].city} to {AIRPORTS[sel.to].city}</span>
+                <span className="muted">{sel.owner === "You" ? "You" : sel.owner} · {sel.sub}</span>
               </div>
-              <button className="btn small" style={{ alignSelf: "flex-start" }} onClick={() => setSelected(null)} aria-label="Close details">✕</button>
+              <button className="icon-btn" onClick={() => setSelected(null)} aria-label="Close details">✕</button>
             </div>
-            <div style={{ display: "flex", gap: 18, marginTop: 10, fontSize: 13, flexWrap: "wrap" }}>
-              <span><b>{sel.miles.toLocaleString()}</b> mi</span>
+            <div className="detail-stats">
+              <div><b>{sel.miles.toLocaleString()}</b><span>miles</span></div>
               {sel.live ? (
                 <>
-                  <span><b>{phaseLabel(sel.live.phase, sel.live.real)}</b></span>
-                  {sel.live.phase === "airborne" && <span><b>{Math.round(sel.live.progress * 100)}%</b> there</span>}
-                  {sel.live.lands && sel.live.phase !== "arrival" && <span>scheduled arrival <b>{sel.live.lands}</b></span>}
-                  <span className="muted">
-                    {[sel.live.phase === "airborne" && sel.live.real.altFt != null && `${sel.live.real.altFt.toLocaleString()} ft`, sel.live.real.speedKt != null && `${sel.live.real.speedKt} kt`].filter(Boolean).join(" · ")}
-                    {sel.live.real.seenAt ? <>{" · "}<Ago iso={sel.live.real.seenAt} /></> : null}
-                  </span>
+                  <div><b>{phaseLabel(sel.live.phase, sel.live.real)}</b><span>status</span></div>
+                  {sel.live.phase === "airborne" && <div><b>{Math.round(sel.live.progress * 100)}%</b><span>there</span></div>}
+                  {sel.live.lands && sel.live.phase !== "arrival" && <div><b>{sel.live.lands}</b><span>sched. arrival</span></div>}
+                  {sel.live.phase === "airborne" && sel.live.real.altFt != null && <div><b>{sel.live.real.altFt.toLocaleString()} ft</b><span>altitude</span></div>}
+                  {sel.live.real.speedKt != null && <div><b>{sel.live.real.speedKt} kt</b><span>speed</span></div>}
                 </>
               ) : (
-                <span className="muted">
-                  {sel.kind === "mine" && sel.sharedWith.length > 0 ? `Shared route · also flown by ${sel.sharedWith.join(", ")}` : "Completed flight"}
-                </span>
+                <div className="wide"><b>{sel.kind === "mine" && sel.sharedWith.length > 0 ? "Shared route" : "Completed"}</b><span>{sel.kind === "mine" && sel.sharedWith.length > 0 ? `also flown by ${sel.sharedWith.join(", ")}` : "flight"}</span></div>
               )}
             </div>
+            {sel.live?.real.seenAt && <p className="detail-updated"><Ago iso={sel.live.real.seenAt} /></p>}
           </div>
         )}
       </div>
