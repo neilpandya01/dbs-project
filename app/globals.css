@@ -891,8 +891,10 @@ img { max-width: 100%; }
   .map-overlay { bottom: 0; }
 }
 
-/* the opened map credit always sits above the legend; the legend steps aside while it's open */
-.map-box .maplibregl-ctrl-top-left { z-index: 8; }
-.map-box:has(.maplibregl-compact-show) .map-legend,
-.map-box:has(.maplibregl-ctrl-attrib[open]) .map-legend { visibility: hidden; }
-.map-box .maplibregl-ctrl-attrib.maplibregl-compact-show, .map-box .maplibregl-ctrl-attrib[open] { max-width: calc(100vw - 24px); }
+/* phones: the legend sits at the very top, and the credit "i" goes right below it so opening the credit never covers the legend */
+@media (max-width: 860px) {
+  .map-legend { left: 10px; max-width: calc(100% - 20px); }
+  .map-box .maplibregl-ctrl-top-left { top: 46px; z-index: 8; }
+  .map-box .maplibregl-ctrl-attrib.maplibregl-compact-show, .map-box .maplibregl-ctrl-attrib[open] { max-width: calc(100vw - 24px); }
+  .map-warn { top: 100px; }
+}
