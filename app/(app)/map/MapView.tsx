@@ -162,30 +162,35 @@ export function MapView() {
   const [airport, setAirport] = useState<string | null>(null);
   // the grab bar: drag it down to lower the sheet, up to raise it; a plain tap toggles
   const panelRef = useRef<HTMLElement>(null);
-  const drag = useRef<{ y: number; moved: boolean } | null>(null);
+  const drag = useRef<{ y: number; h: number; moved: boolean } | null>(null);
+  const CLOSED_H = 112;
   const onGrabDown = (e: React.PointerEvent<HTMLButtonElement>) => {
-    drag.current = { y: e.clientY, moved: false };
+    const el = panelRef.current;
+    drag.current = { y: e.clientY, h: el?.offsetHeight ?? CLOSED_H, moved: false };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
   const onGrabMove = (e: React.PointerEvent<HTMLButtonElement>) => {
-    const d = drag.current;
-    if (!d) return;
+    const d = drag.current, el = panelRef.current;
+    if (!d || !el) return;
     const dy = e.clientY - d.y;
     if (Math.abs(dy) > 6) d.moved = true;
-    if (open && panelRef.current) { // the open sheet follows your finger downwards
-      panelRef.current.style.transition = "none";
-      panelRef.current.style.transform = `translateY(${Math.max(0, dy)}px)`;
-    }
+    if (!d.moved) return;
+    // the sheet's height follows your finger, in either direction (the list shows while you drag)
+    const full = (el.parentElement?.clientHeight ?? 600) * 0.78;
+    el.dataset.dragging = "true";
+    el.style.transition = "none";
+    el.style.height = `${Math.min(full, Math.max(CLOSED_H, d.h - dy))}px`;
   };
   const onGrabEnd = (e: React.PointerEvent<HTMLButtonElement>) => {
-    const d = drag.current;
+    const d = drag.current, el = panelRef.current;
     drag.current = null;
-    if (panelRef.current) { panelRef.current.style.transition = ""; panelRef.current.style.transform = ""; }
     if (!d) return;
     const dy = e.clientY - d.y;
+    if (el) { delete el.dataset.dragging; el.style.transition = ""; el.style.height = ""; }
     if (!d.moved) setOpen((o) => !o);
     else if (dy > 40) setOpen(false);
     else if (dy < -40) setOpen(true);
+    else if (open) setOpen(true); // a small nudge: stay as it was
   };
   const setSelected = (id: string | null) => {
     setSelectedRaw(id);

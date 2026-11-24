@@ -105,6 +105,14 @@ export function ProfileLayout({ who, subtitle, friendCount, friendAvatars, fligh
         )}
       </section>
 
+      {!limited && (who.bio || (who.home && !subtitle.includes(who.home))) && (
+        <button className="bio-peek" onClick={() => setDetails(true)} aria-label="View full profile details">
+          {who.home && !subtitle.includes(who.home) && <span className="bio-home"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.500A2.500 2.500 0 1 1 12 6.500a2.500 2.500 0 0 1 0 5Z" /></svg>{who.home}</span>}
+          {who.bio && <span className="bio-text">{who.bio}</span>}
+          {who.bio && who.bio.length > 110 && <span className="bio-more">Read more ›</span>}
+        </button>
+      )}
+
       {limited ? (
         <div className="card locked-card" role="status">
           <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
@@ -194,7 +202,7 @@ export function ProfileLayout({ who, subtitle, friendCount, friendAvatars, fligh
             <ProfileRow label="Display name" value={who.name} />
             <ProfileRow label="Username" value={<span className="mono">@{who.username}</span>} note={own ? "Can’t be changed after sign-up" : undefined} />
             <ProfileRow label="Home city" value={who.home || "Not set"} muted={!who.home} />
-            <ProfileRow label="Bio" value={who.bio || (own ? "No bio yet" : "No bio")} muted={!who.bio} />
+            <ProfileRow label="Bio" value={who.bio || (own ? "No bio yet" : "No bio")} muted={!who.bio} stack />
             <ProfileRow label="Joined" value={who.joined} />
             {own && <ProfileRow label="Friends" value={String(friendCount ?? 0)} />}
           </dl>
@@ -216,9 +224,9 @@ export function ProfileLayout({ who, subtitle, friendCount, friendAvatars, fligh
   );
 }
 
-function ProfileRow({ label, value, note, muted }: { label: string; value: React.ReactNode; note?: string; muted?: boolean }) {
+function ProfileRow({ label, value, note, muted, stack }: { label: string; value: React.ReactNode; note?: string; muted?: boolean; /** Long text: label above, full width. */ stack?: boolean }) {
   return (
-    <div className="profile-row">
+    <div className={`profile-row${stack ? " stack" : ""}`}>
       <dt>{label}</dt>
       <dd className={muted ? "muted" : undefined}>
         {value}

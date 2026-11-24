@@ -197,6 +197,9 @@ h1, h2, h3, .stat .v, .bar b, .brand { font-family: var(--font-display), var(--f
   }
   .map-panel[data-open="false"] .list, .map-panel[data-open="false"] .search { display: none; }
   .map-panel[data-open="true"] { height: 78%; }
+  .map-panel[data-dragging="true"] { overflow: hidden; max-height: 78%; }
+  .map-panel[data-dragging="true"] .list { display: block; }
+  .map-panel[data-dragging="true"] .search { display: block; }
   .sheet-handle { display: block; width: 100%; border: 0; background: transparent; padding: 6px 0 14px; margin-top: -6px; touch-action: none; cursor: grab; }
   .sheet-handle i { display: block; width: 44px; height: 5px; border-radius: 99px; background: var(--border); margin: 0 auto; }
   .map-panel .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
@@ -742,3 +745,23 @@ a, button, .tab, .dock a { touch-action: manipulation; }
 .mention-list button { width: 100%; display: flex; align-items: center; gap: 10px; border: 0; background: transparent; text-align: left; padding: 8px 10px; border-radius: 10px; min-height: 44px; }
 .mention-list button.on, .mention-list button:hover { background: var(--accent-soft); }
 .mention-note { padding: 10px 12px; font-size: 13.5px; color: var(--muted); }
+
+/* ---------- profile: bio preview + phone hero ---------- */
+.bio-peek { display: grid; gap: 4px; width: 100%; text-align: left; margin-top: 12px; padding: 12px 16px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 18px; box-shadow: var(--shadow); font: inherit; }
+.bio-home { display: inline-flex; align-items: center; gap: 5px; font-size: 13.5px; font-weight: 600; color: var(--muted); }
+.bio-text { font-size: 15px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.bio-more { font-size: 13.5px; font-weight: 700; color: var(--accent); }
+.profile-row.stack { grid-template-columns: 1fr; gap: 4px; align-items: start; }
+.profile-row.stack dd { white-space: pre-wrap; font-weight: 500; line-height: 1.5; }
+
+@media (max-width: 600px) {
+  /* stack the hero: avatar + name on one row, actions on their own full-width row (nothing gets squeezed to "@…") */
+  .hero { flex-direction: column; align-items: stretch; justify-content: flex-end; min-height: 210px; gap: 12px; padding: 14px; }
+  .hero-top { align-self: stretch; flex: none; }
+  .hero-info { flex: 1; }
+  .hero-user { font-size: 24px; }
+  .hero-actions { align-self: stretch; justify-content: stretch; flex-wrap: nowrap; }
+  .hero-actions > * { flex: 1; justify-content: center; text-align: center; white-space: nowrap; min-height: 42px; }
+  .friends-pill { align-self: flex-start; }
+  .hero-edit { top: 10px; right: 10px; }
+}

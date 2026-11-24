@@ -323,9 +323,22 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
       if (map.getLayer("airports-dot")) map.setPaintProperty("airports-dot", "circle-stroke-width", isDarkMap ? 2.5 : 2);
     };
     m.on("style.load", setup);
-    m.on("click", "airports-dot", (e) => {
-      const code = e.features?.[0]?.properties?.code;
-      if (code) latest.current.onSelectAirport?.(String(code));
+    // A forgiving tap target: pick the nearest airport dot within a few pixels of the tap (bigger on touch screens),
+    // instead of needing to land exactly on the small dot.
+    m.on("click", (e) => {
+      if (!m.getLayer("airports-dot")) return;
+      const r = window.matchMedia("(pointer: coarse)").matches ? 28 : 12;
+      const { x, y } = e.point;
+      const hits = m.queryRenderedFeatures([[x - r, y - r], [x + r, y + r]], { layers: ["airports-dot"] });
+      let best: { code: string; d: number } | null = null;
+      for (const f of hits) {
+        const code = f.properties?.code;
+        if (!code || f.geometry.type !== "Point") continue;
+        const p = m.project(f.geometry.coordinates as [number, number]);
+        const d = Math.hypot(p.x - x, p.y - y);
+        if (d <= r && (!best || d < best.d)) best = { code: String(code), d };
+      }
+      if (best) latest.current.onSelectAirport?.(best.code);
     });
     m.on("mouseenter", "airports-dot", () => (m.getCanvas().style.cursor = "pointer"));
     m.on("mouseleave", "airports-dot", () => (m.getCanvas().style.cursor = ""));
