@@ -655,3 +655,4 @@ button.tag-btn:hover { filter: brightness(.95); }
 .comment-edit { display: grid; gap: 8px; margin-top: 6px; }
 .comments-card { padding: 4px 14px; }
 .scope-bar { flex-wrap: wrap; overflow: visible; }
+.airport-filter-on { margin-bottom: 8px; }

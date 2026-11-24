@@ -93,7 +93,8 @@ export function NewsView() {
   const [scope, setScope] = useState<Scope>("all");
   const [sort, setSort] = useState<Sort>("hot");
   const [mine, setMine] = useState(false);
-  const [airport, setAirport] = useState(""); // show only threads tagged with this airport
+  const [airports, setAirports] = useState<string[]>([]); // show only threads tagged with any of these airports
+  const addAirport = (code: string) => code && setAirports((a) => (a.includes(code) ? a : [...a, code]));
   const [form, setForm] = useState<{ thread: Thread | null } | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
@@ -153,12 +154,12 @@ export function NewsView() {
     const f = threads.filter((t) =>
       (scope === "all" || (scope === "friends" && friendIds.has(t.user_id)) || (scope === "mine" && t.user_id === me.id)) &&
       (!mine || t.airports.some((c) => myAirports.has(c))) &&
-      (!airport || t.airports.includes(airport))
+      (airports.length === 0 || t.airports.some((c) => airports.includes(c)))
     );
     if (sort === "new") return [...f].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
     if (sort === "top") return [...f].sort((a, b) => activity(b) - activity(a) || Date.parse(b.created_at) - Date.parse(a.created_at));
     return [...f].sort((a, b) => hotScore(b, now) - hotScore(a, now));
-  }, [threads, scope, friendIds, me.id, mine, myAirports, airport, sort, now]);
+  }, [threads, scope, friendIds, me.id, mine, myAirports, airports, sort, now]);
 
   const save = async (v: ThreadValues) => {
     const existing = form?.thread ?? null;
@@ -222,12 +223,12 @@ export function NewsView() {
         <button className="btn primary" onClick={() => setForm({ thread: null })}>＋ Start a thread</button>
       </div>
 
-      {scope === "all" && spots.length > 0 && !airport && (
+      {scope === "all" && spots.length > 0 && airports.length === 0 && (
         <section aria-label="Developing now">
           <h2 className="sec">Developing now <small>busiest airports, last 24 h</small></h2>
           <div className="hotspots">
             {spots.map((s) => (
-              <button key={s.code} type="button" className="hotspot" onClick={() => setAirport(s.code)} aria-label={`Show threads about ${s.code}`}>
+              <button key={s.code} type="button" className="hotspot" onClick={() => addAirport(s.code)} aria-label={`Show threads about ${s.code}`}>
                 <div className="hotspot-code mono">{s.code}<span>{AIRPORTS[s.code]?.city}</span></div>
                 <div className="hotspot-stats">
                   <b>{s.threads.length}</b> {s.threads.length === 1 ? "report" : "reports"} · <b>{s.comments}</b> {s.comments === 1 ? "comment" : "comments"}
@@ -239,7 +240,7 @@ export function NewsView() {
         </section>
       )}
 
-      {scope === "all" && hot.length > 0 && !airport && (
+      {scope === "all" && hot.length > 0 && airports.length === 0 && (
         <section aria-label="Trending threads">
           <h2 className="sec">Trending</h2>
           <div className="trending">
@@ -288,14 +289,19 @@ export function NewsView() {
           </div>
 
           <div className="airport-filter">
-            {airport ? (
+            {airports.length > 0 && (
               <div className="airport-filter-on">
-                <span>Showing threads about <b className="mono">{airport}</b>{AIRPORTS[airport] ? ` · ${AIRPORTS[airport].name}` : ""}</span>
-                <button className="linkish" onClick={() => setAirport("")}>Clear</button>
+                <div className="chips-row" aria-label="Airports you're filtering by">
+                  {airports.map((c) => (
+                    <button key={c} type="button" className="tag mono tag-remove" onClick={() => setAirports((a) => a.filter((x) => x !== c))} aria-label={`Stop filtering by ${c}`} title={AIRPORTS[c]?.name}>
+                      {c} ✕
+                    </button>
+                  ))}
+                </div>
+                <button className="linkish" onClick={() => setAirports([])}>Clear all</button>
               </div>
-            ) : (
-              <AirportPicker label="Filter by airport" value="" onPick={setAirport} />
             )}
+            <AirportPicker label={airports.length > 0 ? "Add another airport" : "Filter by airport"} value="" onPick={addAirport} />
           </div>
 
           {list.length > 0 ? (
@@ -313,17 +319,17 @@ export function NewsView() {
                   onFlag={() => flag(t.id)}
                   onEdit={() => setForm({ thread: t })}
                   onDelete={() => del(t)}
-                  onPickAirport={setAirport}
+                  onPickAirport={addAirport}
                 />
               ))}
             </div>
           ) : (
             <div className="card empty" style={{ marginTop: 12 }}>
               <b>
-                {airport || mine ? "No threads match" : scope === "friends" ? "No threads from friends yet" : scope === "mine" ? "You haven’t started a thread yet" : "No threads yet"}
+                {airports.length > 0 || mine ? "No threads match" : scope === "friends" ? "No threads from friends yet" : scope === "mine" ? "You haven’t started a thread yet" : "No threads yet"}
               </b>
               <p className="muted" style={{ margin: "6px 0 0" }}>
-                {airport || mine ? "Try another airport, or clear the filters." : scope === "friends" ? "Threads your friends post show up here." : "Be the first to share what you’re seeing at an airport."}
+                {airports.length > 0 || mine ? "Try other airports, or clear the filters." : scope === "friends" ? "Threads your friends post show up here." : "Be the first to share what you’re seeing at an airport."}
               </p>
             </div>
           )}

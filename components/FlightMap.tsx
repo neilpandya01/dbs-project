@@ -107,11 +107,9 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const ready = useRef(false);
-  /** one marker per plane, kept between updates so it can glide from where it was to where it now is */
+  /** one marker per plane, kept between updates and moved to each new reported position */
   type PlaneMarker = { marker: maplibregl.Marker; node: HTMLButtonElement; key: string; from: LngLat; to: LngLat; cur: LngLat; t0: number };
   const planeMarkers = useRef(new Map<string, PlaneMarker>());
-  const raf = useRef<number | null>(null);
-  const lastRouteDraw = useRef(0);
   const latest = useRef({ routes, planes, selectedPlane, onSelectPlane, airports, onSelectAirport });
   latest.current = { routes, planes, selectedPlane, onSelectPlane, airports, onSelectAirport };
 
@@ -133,26 +131,6 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
     const m = map.current;
     if (!m || !ready.current) return;
     (m.getSource("airports") as maplibregl.GeoJSONSource | undefined)?.setData(airportsToGeoJSON(latest.current.airports));
-  };
-
-  const GLIDE_MS = 2400; // a new position is reached over about one update interval, so the plane keeps moving
-
-  const animate = () => {
-    if (raf.current != null) return;
-    const step = (t: number) => {
-      raf.current = null;
-      let moving = false;
-      for (const pm of planeMarkers.current.values()) {
-        const k = Math.min(1, (t - pm.t0) / GLIDE_MS);
-        if (k < 1) moving = true;
-        pm.cur = [pm.from[0] + (pm.to[0] - pm.from[0]) * k, pm.from[1] + (pm.to[1] - pm.from[1]) * k];
-        pm.marker.setLngLat(pm.cur);
-      }
-      if (t - lastRouteDraw.current > 66) { lastRouteDraw.current = t; drawRoutes(); } // route lines follow, ~15 times a second
-      if (moving) raf.current = requestAnimationFrame(step);
-      else drawRoutes();
-    };
-    raf.current = requestAnimationFrame(step);
   };
 
   const drawMarkers = () => {
@@ -200,16 +178,16 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
         const marker = new maplibregl.Marker({ element: node }).setLngLat(pos).addTo(m);
         pm = { marker, node, key, from: pos, to: pos, cur: pos, t0: now };
         planeMarkers.current.set(p.id, pm);
-      } else if (pm.to[0] !== pos[0] || pm.to[1] !== pos[1]) {
-        pm.from = pm.cur; // glide on from wherever the marker is right now
-        pm.to = pos;
-        pm.t0 = now;
+      } else if (pm.cur[0] !== pos[0] || pm.cur[1] !== pos[1]) {
+        // the raw position, as reported: no smoothing or animation between updates
+        pm.from = pm.to = pm.cur = pos;
+        pm.marker.setLngLat(pos);
       }
       pm.node.className = "plane-marker" + (p.id === selectedPlane ? " selected" : "");
       pm.node.setAttribute("aria-label", `${p.name} in flight, heading ${Math.round(heading)} degrees`);
     }
     for (const [id, pm] of planeMarkers.current) if (!keep.has(id)) { pm.marker.remove(); planeMarkers.current.delete(id); }
-    animate();
+    drawRoutes(); // the route lines start at the plane, so they follow its new position
   };
 
   // create the map once
@@ -361,8 +339,6 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
 
     return () => {
       dark.removeEventListener("change", onScheme);
-      if (raf.current != null) cancelAnimationFrame(raf.current);
-      raf.current = null;
       planeMarkers.current.forEach((pm) => pm.marker.remove());
       planeMarkers.current.clear();
       m.remove();
