@@ -209,7 +209,16 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
       m.scrollZoom.setWheelZoomRate(1 / 110);
       m.scrollZoom.setZoomRate(1 / 28);
     }
-    m.addControl(new maplibregl.AttributionControl({ compact: true }), "top-left");
+    // The map credit starts collapsed to the little "i" (tap it to read the credit). On a wide screen it sits bottom-right so
+    // the opened credit never runs under the legend; on a phone the bottom is covered by the panel, so it stays top-left.
+    m.addControl(new maplibregl.AttributionControl({ compact: true }), window.matchMedia("(max-width: 860px)").matches ? "top-left" : "bottom-right");
+    const collapseCredit = () => {
+      const c = m.getContainer().querySelector(".maplibregl-ctrl-attrib");
+      c?.classList.remove("maplibregl-compact-show");
+      c?.removeAttribute("open");
+    };
+    collapseCredit();
+    m.once("load", collapseCredit);
     if (interactive) m.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
     const setup = () => {

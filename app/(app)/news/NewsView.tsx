@@ -155,7 +155,8 @@ export function NewsView() {
       (!mine || t.airports.some((c) => myAirports.has(c))) &&
       (airports.length === 0 || t.airports.some((c) => airports.includes(c)))
     );
-    if (sort === "new") return [...f].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+    // Hot / Top only apply to the All feed; Friends and My threads are always newest first
+    if (scope !== "all" || sort === "new") return [...f].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
     if (sort === "top") return [...f].sort((a, b) => activity(b) - activity(a) || Date.parse(b.created_at) - Date.parse(a.created_at));
     return [...f].sort((a, b) => hotScore(b, now) - hotScore(a, now));
   }, [threads, scope, friendIds, me.id, mine, myAirports, airports, sort, now]);
@@ -264,7 +265,7 @@ export function NewsView() {
       ) : (
         <>
           <div className="chip-bar" role="group" aria-label="Sort and filter threads" style={{ marginTop: scope === "all" ? 16 : 0 }}>
-            {SORTS.map(([s, label]) => (
+            {scope === "all" && SORTS.map(([s, label]) => (
               <button key={s} className="chip-btn" aria-pressed={sort === s} onClick={() => setSort(s)}>{label}</button>
             ))}
             <button className="chip-btn mine" aria-pressed={mine} onClick={() => setMine((m) => !m)}>★ My airports</button>

@@ -41,9 +41,9 @@ const uniq = (xs: (string | undefined)[]) => [...new Set(xs.filter((x): x is str
 function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
   return (
     <label className={`filter-select${value ? " on" : ""}`}>
-      <span className="sr-only">{label}</span>
+      <span className="filter-label">{label}</span>
       <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
-        <option value="">{label}</option>
+        <option value="">Any</option>
         {options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
     </label>
@@ -129,7 +129,7 @@ export function FlightsView() {
         <input type="search" className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search airline, flight no., airport, tail number, seat, notes…" aria-label="Search flights" />
       </div>
 
-      <div className="filter-bar" role="group" aria-label="Filters">
+      <div className="filter-card" role="group" aria-label="Filters">
         <div className="tabs" role="group" aria-label="Status">
           {(["past", "upcoming", "all"] as Status[]).map((s) => (
             <button key={s} className="tab" aria-pressed={status === s} onClick={() => setStatus(s)}>
@@ -137,12 +137,14 @@ export function FlightsView() {
             </button>
           ))}
         </div>
-        <FilterSelect label="Year" value={year} onChange={setYear} options={options.years} />
-        <FilterSelect label="Airline" value={airline} onChange={setAirline} options={options.airlines} />
-        <FilterSelect label="Aircraft" value={aircraft} onChange={setAircraft} options={options.aircraft} />
-        <FilterSelect label="Airport" value={airport} onChange={setAirport} options={options.airports} />
-        <FilterSelect label="Delays & cancellations" value={disruption} onChange={setDisruption} options={["Delayed", "Cancelled"]} />
-        <FilterSelect label="Country" value={country} onChange={setCountry} options={options.countries} />
+        <div className="filter-grid">
+          <FilterSelect label="Year" value={year} onChange={setYear} options={options.years} />
+          <FilterSelect label="Airline" value={airline} onChange={setAirline} options={options.airlines} />
+          <FilterSelect label="Aircraft" value={aircraft} onChange={setAircraft} options={options.aircraft} />
+          <FilterSelect label="Airport" value={airport} onChange={setAirport} options={options.airports} />
+          <FilterSelect label="Country" value={country} onChange={setCountry} options={options.countries} />
+          <FilterSelect label="Delays & cancellations" value={disruption} onChange={setDisruption} options={["Delayed", "Cancelled"]} />
+        </div>
       </div>
 
       <div className="result-bar">

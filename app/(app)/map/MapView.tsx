@@ -274,7 +274,9 @@ export function MapView() {
               <button className="track-item" aria-pressed={selected === i.id} onClick={() => setSelected(selected === i.id ? null : i.id)}>
                 <Avatar name={i.face.name || i.owner} color={i.face.color} src={i.face.photo} size={34} />
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <b className="mono" style={{ fontSize: 14 }}>{i.title}</b>{i.kind === "mine" && <> <span className="badge accent">You</span></>}
+                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <b className="mono" style={{ fontSize: 14 }}>{i.title}</b>{i.kind === "mine" && <span className="badge accent" style={{ fontSize: 11, padding: "1px 8px", lineHeight: "16px" }}>You</span>}
+                  </span>
                   <span className="muted" style={{ display: "block", fontSize: 12.5 }}>
                     {i.owner === "You" ? "" : `${i.owner} · `}{i.sub}
                     {i.live?.real?.seenAt && <> · <Ago iso={i.live.real.seenAt} /></>}
@@ -298,8 +300,7 @@ export function MapView() {
         <ul className="map-legend" aria-label="Map legend">
           <li><i style={{ background: AIRPORT_COLORS.me }} /><i className="line" style={{ background: MINE_COLOR }} />Only you</li>
           <li><i style={{ background: AIRPORT_COLORS.friend }} />Only friends</li>
-          <li><i style={{ background: AIRPORT_COLORS.both }} />You &amp; friends</li>
-          <li><i className="line" style={{ background: AIRPORT_COLORS.both }} />Shared route</li>
+          <li><i style={{ background: AIRPORT_COLORS.both }} /><i className="line" style={{ background: AIRPORT_COLORS.both }} />You &amp; friends</li>
         </ul>
         {apt && (
           <div className="card map-overlay">
