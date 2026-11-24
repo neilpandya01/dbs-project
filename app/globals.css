@@ -809,7 +809,11 @@ img { max-width: 100%; }
 
 /* ---------- "you were tagged" panel ---------- */
 .mentions-panel { margin: 0 0 14px; padding: 14px 14px 10px; border-left: 4px solid #e5372e; }
-.mentions-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.mentions-head { display: flex; align-items: center; gap: 10px; width: 100%; margin: 0; padding: 2px 0; border: 0; background: transparent; text-align: left; color: inherit; font: inherit; min-height: 36px; }
+.mentions-head .mentions-count { margin-left: auto; }
+.mentions-chev { font-size: 22px; line-height: 1; color: var(--muted); transition: transform .15s; }
+.mentions-chev.open { transform: rotate(90deg); }
+.mentions-list { margin-top: 6px; }
 .mentions-head h2 { margin: 0; font-size: 16px; }
 .mentions-head .muted { font-size: 13px; }
 .mentions-list { list-style: none; margin: 0; padding: 0; display: grid; }
@@ -856,3 +860,33 @@ img { max-width: 100%; }
 .friends-pill.static { padding: 6px 14px; }
 @media (max-width: 480px) { .friends-pill, .friends-pill:has(.friends-stack:not(:empty)), .friends-pill.static { padding: 6px 14px; } }
 @media (max-width: 600px) { .hero > .friends-pill { min-height: 34px; } }
+
+.mentions-head h2 { display: flex; align-items: center; gap: 10px; }
+.mentions-bell { font-size: 17px; line-height: 1; }
+
+/* ---------- map controls ---------- */
+.show-all-btn { display: grid; place-items: center; }
+.show-all-btn svg { color: #333; }
+
+/* ---------- map on phones: full-bleed, controls in thumb reach, tidy legend, easy tabs ---------- */
+@media (max-width: 860px) {
+  .main:has(.map-layout) { padding-left: 0; padding-right: 0; padding-bottom: var(--dock-h); padding-top: 0; }
+  .map-layout { height: calc(100dvh - var(--top-h) - var(--dock-h)); }
+  .map-box { border-radius: 0; border-left: 0; border-right: 0; }
+  /* zoom + "show all" on the right edge, just above the bottom menu where a thumb rests (hidden while a detail sheet or the open list covers the map) */
+  .map-box .maplibregl-ctrl-top-right { top: auto; bottom: 122px; right: 10px; display: grid; gap: 10px; }
+  .map-box .maplibregl-ctrl-top-right .maplibregl-ctrl { float: none; margin: 0; }
+  .map-box .maplibregl-ctrl-group button { width: 44px; height: 44px; }
+  .map-layout:has(.detail-card) .maplibregl-ctrl-top-right,
+  .map-layout:has(.map-panel[data-open="true"]) .maplibregl-ctrl-top-right { display: none; }
+  /* legend: one small fixed strip beside the credit "i" */
+  .map-legend { top: 10px; left: 50px; right: auto; max-width: calc(100% - 62px); flex-wrap: wrap; gap: 2px 10px; padding: 4px 10px; font-size: 11px; border-radius: 14px; }
+  .map-legend i { width: 8px; height: 8px; border-width: 1.5px; }
+  .map-warn { top: 54px; }
+  /* bottom menu: three equal, easy-to-hit tabs instead of a scrolling strip */
+  .map-panel { padding: 8px 12px 10px; border-radius: 22px 22px 0 0; }
+  .map-panel .tabs { display: grid; grid-template-columns: repeat(3, 1fr); overflow: visible; padding: 3px; }
+  .map-panel .tab { min-height: 44px; padding: 0 6px; font-size: 14px; text-align: center; }
+  .map-panel .track-item { min-height: 56px; }
+  .map-overlay { bottom: 0; }
+}

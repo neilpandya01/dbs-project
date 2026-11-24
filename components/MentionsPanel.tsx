@@ -17,6 +17,7 @@ export function MentionsPanel({ now }: { now: number }) {
   const { items, unseen, markSeen } = useMentions();
   const [fresh, setFresh] = useState<Set<string>>(new Set());
   const [all, setAll] = useState(false);
+  const [open, setOpen] = useState(false); // collapsed unless something new came in; tap the header to reopen
 
   // remember which were new, then mark them seen so the red dot clears
   useEffect(() => {
@@ -25,15 +26,22 @@ export function MentionsPanel({ now }: { now: number }) {
     markSeen();
   }, [unseen, items, markSeen]);
 
+  // new mentions open the list on their own; with nothing new it stays folded up
+  useEffect(() => { if (fresh.size > 0) setOpen(true); }, [fresh.size]);
+
   if (items.length === 0) return null;
   const list = all ? items : items.slice(0, SHOWN);
 
   return (
     <section className="mentions-panel card" aria-label="Where you were tagged">
-      <div className="mentions-head">
-        <h2>🔔 You were tagged</h2>
-        <span className="muted">{items.length === 1 ? "1 mention" : `${items.length} mentions`}</span>
-      </div>
+      <button className="mentions-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <h2>{fresh.size > 0 && <span className="mentions-bell" aria-hidden="true">🔔</span>}You were tagged</h2>
+        {fresh.size > 0 && <span className="badge accent">{fresh.size} new</span>}
+        <span className="muted mentions-count">{items.length === 1 ? "1 mention" : `${items.length} mentions`}</span>
+        <span className={`mentions-chev${open ? " open" : ""}`} aria-hidden="true">›</span>
+      </button>
+      {open && (
+      <>
       <ul className="mentions-list">
         {list.map((m) => (
           <li key={m.id}>
@@ -53,6 +61,8 @@ export function MentionsPanel({ now }: { now: number }) {
       </ul>
       {items.length > SHOWN && (
         <button className="linkish mentions-more" onClick={() => setAll((a) => !a)}>{all ? "Show fewer" : `Show all ${items.length}`}</button>
+      )}
+      </>
       )}
     </section>
   );

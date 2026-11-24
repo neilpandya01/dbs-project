@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/Avatar";
 import { CommentItem } from "@/components/CommentItem";
 import { ConfirmDelete } from "@/components/ConfirmDelete";
@@ -67,16 +67,34 @@ export function ThreadView({ id }: { id: string }) {
 
   // arriving from a "you were tagged" link (#c-<comment id>): scroll to that comment and flash it
   const loaded = thread !== undefined && thread !== null;
+  const jumped = useRef(false);
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || jumped.current) return;
     const m = /^#(c-[0-9a-f-]{36})$/i.exec(window.location.hash);
     if (!m) return;
     const el = document.getElementById(m[1]);
     if (!el) return;
-    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    jumped.current = true; // only once per visit, so posting a reply later doesn't jump you back
+    // photos above the comment load after the first scroll and push it off-centre: re-centre a few times while the page
+    // settles, unless you start scrolling yourself
+    let stop = false;
+    const center = (behavior: ScrollBehavior) => { if (!stop) el.scrollIntoView({ block: "center", behavior }); };
+    const cancel = () => { stop = true; };
+    window.addEventListener("wheel", cancel, { passive: true });
+    window.addEventListener("touchstart", cancel, { passive: true });
+    window.addEventListener("keydown", cancel);
+    center("auto");
     el.classList.add("flash");
-    const t = setTimeout(() => el.classList.remove("flash"), 3000);
-    return () => clearTimeout(t);
+    const timers = [400, 1000, 2000].map((ms) => setTimeout(() => center("auto"), ms));
+    const off = setTimeout(() => el.classList.remove("flash"), 3200);
+    return () => {
+      timers.forEach(clearTimeout);
+      clearTimeout(off);
+      el.classList.remove("flash");
+      window.removeEventListener("wheel", cancel);
+      window.removeEventListener("touchstart", cancel);
+      window.removeEventListener("keydown", cancel);
+    };
   }, [loaded, comments.length]);
 
   const needsServerList = !!thread && thread.friends_only && thread.user_id !== me.id;

@@ -31,6 +31,27 @@ type Feature = { type: "Feature"; properties: Record<string, string | number>; g
 
 const STEPS = 200;
 
+/** A map button (under the zoom buttons) that zooms back out to show all the routes and airports. */
+class ShowAllControl implements maplibregl.IControl {
+  private box?: HTMLElement;
+  constructor(private fit: () => void) {}
+  onAdd() {
+    const box = document.createElement("div");
+    box.className = "maplibregl-ctrl maplibregl-ctrl-group";
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "show-all-btn";
+    b.title = "Show all routes";
+    b.setAttribute("aria-label", "Show all routes");
+    b.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+    b.addEventListener("click", this.fit);
+    box.appendChild(b);
+    this.box = box;
+    return box;
+  }
+  onRemove() { this.box?.remove(); }
+}
+
 const isDark = () => typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
 
 /** Mix a #rrggbb colour with white so it stands out on a dark map. Other formats are returned unchanged. */
@@ -221,7 +242,17 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
     };
     collapseCredit();
     m.once("load", collapseCredit);
-    if (interactive) m.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    if (interactive) {
+      m.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+      m.addControl(new ShowAllControl(() => {
+        const { routes, airports } = latest.current;
+        const pts = [...routes.flatMap((r) => [AIRPORTS[r.from].lngLat, AIRPORTS[r.to].lngLat]), ...airports.map((a) => AIRPORTS[a.code].lngLat)];
+        if (pts.length === 0) { m.easeTo({ center: [-60, 38], zoom: 1.6 }); return; }
+        const bounds = pts.reduce((b, p) => b.extend(p), new maplibregl.LngLatBounds(pts[0], pts[0]));
+        const mobile = window.innerWidth <= 860;
+        m.fitBounds(bounds, { padding: { top: 60, bottom: mobile ? 150 : 50, left: 40, right: 40 }, duration: 700, maxZoom: 4 });
+      }), "top-right");
+    }
 
     const setup = () => {
       new Set(latest.current.routes.map((r) => routeColor(r.color, dark.matches))).forEach((c) => ensureArrow(m, c));
@@ -279,7 +310,7 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
           type: "circle",
           source: "airports",
           paint: {
-            "circle-radius": ["interpolate", ["linear"], ["zoom"], 1, 4, 6, 8],
+            "circle-radius": window.matchMedia("(pointer: coarse)").matches ? ["interpolate", ["linear"], ["zoom"], 1, 6, 6, 11] : ["interpolate", ["linear"], ["zoom"], 1, 4, 6, 8],
             "circle-color": ["match", ["get", "kind"], "me", AIRPORT_COLORS.me, "friend", AIRPORT_COLORS.friend, AIRPORT_COLORS.both],
             "circle-stroke-color": "#ffffff",
             "circle-stroke-width": 2,

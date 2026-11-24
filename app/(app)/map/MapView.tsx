@@ -172,35 +172,44 @@ export function MapView() {
   const [airport, setAirport] = useState<string | null>(null);
   // the grab bar: drag it down to lower the sheet, up to raise it; a plain tap toggles
   const panelRef = useRef<HTMLElement>(null);
-  const drag = useRef<{ y: number; h: number; moved: boolean } | null>(null);
+  const drag = useRef<{ y: number; t: number; h: number; started: boolean; wasOpen: boolean } | null>(null);
   const CLOSED_H = 112;
+  const DEAD_ZONE = 24; // px: a small drag does nothing at all (the sheet doesn't budge)
   const onGrabDown = (e: React.PointerEvent<HTMLButtonElement>) => {
-    const el = panelRef.current;
-    drag.current = { y: e.clientY, h: el?.offsetHeight ?? CLOSED_H, moved: false };
+    drag.current = { y: e.clientY, t: performance.now(), h: panelRef.current?.offsetHeight ?? CLOSED_H, started: false, wasOpen: open };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
   const onGrabMove = (e: React.PointerEvent<HTMLButtonElement>) => {
     const d = drag.current, el = panelRef.current;
     if (!d || !el) return;
     const dy = e.clientY - d.y;
-    if (Math.abs(dy) > 6) d.moved = true;
-    if (!d.moved) return;
-    // the sheet's height follows your finger, in either direction (the list shows while you drag)
+    // only the direction that can change something counts: down when open, up when closed
+    const along = d.wasOpen ? dy : -dy;
+    if (!d.started) {
+      if (along < DEAD_ZONE) return;
+      d.started = true;
+    }
+    // past the dead zone the sheet follows your finger (measured from where the zone ended, so it doesn't jump)
     const full = (el.parentElement?.clientHeight ?? 600) * 0.78;
+    const travelled = Math.max(0, along - DEAD_ZONE);
+    const target = d.wasOpen ? d.h - travelled : d.h + travelled;
     el.dataset.dragging = "true";
     el.style.transition = "none";
-    el.style.height = `${Math.min(full, Math.max(CLOSED_H, d.h - dy))}px`;
+    el.style.height = `${Math.min(full, Math.max(CLOSED_H, target))}px`;
   };
   const onGrabEnd = (e: React.PointerEvent<HTMLButtonElement>) => {
     const d = drag.current, el = panelRef.current;
     drag.current = null;
     if (!d) return;
-    const dy = e.clientY - d.y;
     if (el) { delete el.dataset.dragging; el.style.transition = ""; el.style.height = ""; }
-    if (!d.moved) setOpen((o) => !o);
-    else if (dy > 40) setOpen(false);
-    else if (dy < -40) setOpen(true);
-    else if (open) setOpen(true); // a small nudge: stay as it was
+    const dy = e.clientY - d.y;
+    if (Math.abs(dy) < 10) { setOpen((o) => !o); return; } // a tap
+    if (!d.started) return; // a small drag: nothing changes
+    const along = d.wasOpen ? dy : -dy;
+    const range = ((el?.parentElement?.clientHeight ?? 600) * 0.78 - CLOSED_H);
+    const speed = along / Math.max(1, performance.now() - d.t); // px per ms: a quick flick counts even if short
+    // a significant drag (a third of the way, or a quick flick) flips it; otherwise it springs back
+    if (along > Math.max(70, range * 0.33) || (speed > 0.5 && along > 40)) setOpen(!d.wasOpen);
   };
   const setSelected = (id: string | null) => {
     setSelectedRaw(id);
