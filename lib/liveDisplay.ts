@@ -29,3 +29,9 @@ export function phaseLabel(phase: Phase, p: LivePos) {
   if (phase === "departure") return p.onGround ? (moving ? "Taxiing out" : "At the gate") : "Departing";
   return moving ? "Taxiing in" : "At the gate";
 }
+
+/** How far along the route a real position is: the share of the (from -> here -> to) distance already flown. */
+export function routeProgress(from: LngLat, to: LngLat, here: LngLat) {
+  const a = distanceMiles(from, here), b = distanceMiles(here, to);
+  return a + b > 0 ? Math.min(0.98, Math.max(0.02, a / (a + b))) : 0.5;
+}

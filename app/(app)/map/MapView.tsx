@@ -13,7 +13,7 @@ import { useFriends } from "@/lib/friendsStore";
 import { liveFlight } from "@/lib/live";
 import { useLivePositions, type LivePos } from "@/lib/livePositions";
 import { bearing, distanceMiles } from "@/lib/geo";
-import { livePhase, phaseLabel, type Phase } from "@/lib/liveDisplay";
+import { livePhase, phaseLabel, routeProgress, type Phase } from "@/lib/liveDisplay";
 
 type Mode = "all" | "mine" | "friends";
 
@@ -58,11 +58,8 @@ const searchText = (f: Flight, who: string) =>
 
 type LiveEntry = { name: string; username: string; color: string; photo: string | null; flight: Flight; progress: number; real: LivePos; phase: Phase };
 
-/** How far along the route a real position is: the share of the (from -> here -> to) distance already flown. */
 function progressOf(f: Flight, p: LivePos) {
-  const here: [number, number] = [p.lon, p.lat];
-  const a = distanceMiles(AIRPORTS[f.from].lngLat, here), b = distanceMiles(here, AIRPORTS[f.to].lngLat);
-  return a + b > 0 ? Math.min(0.98, Math.max(0.02, a / (a + b))) : 0.5;
+  return routeProgress(AIRPORTS[f.from].lngLat, AIRPORTS[f.to].lngLat, [p.lon, p.lat]);
 }
 
 function buildItems(myFlights: Flight[], friendLive: LiveEntry[]): Item[] {
