@@ -30,7 +30,7 @@ type Props = {
   who: Identity;
   /** Small line above the username: a greeting for you, the home city for a friend. */
   subtitle: string;
-  /** Shown for your own profile only (a friend's own friend list is private). */
+  /** How many friends they have. On your own profile it links to your friends list; on a friend's it's just the number (their list stays private). */
   friendCount?: number;
   /** Your own profile only: avatars shown on the friends pill, which links to your friends list. */
   friendAvatars?: { username: string; name: string; color: string; photo?: string | null }[];
@@ -94,6 +94,11 @@ export function ProfileLayout({ who, subtitle, friendCount, friendAvatars, fligh
           </button>
         )}
         {heroActions && <div className="hero-actions">{heroActions}</div>}
+        {!own && friendCount != null && !limited && (
+          <span className="friends-pill static" role="status">
+            <span className="friends-text"><b>{friendCount}</b> {friendCount === 1 ? "friend" : "friends"}</span>
+          </span>
+        )}
         {own && (
           <Link href="/friends" className="friends-pill" aria-label={`${friendCount ?? 0} ${friendCount === 1 ? "friend" : "friends"}. View friends`}>
             <span className="friends-stack" aria-hidden="true">

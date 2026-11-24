@@ -7,6 +7,7 @@ import { ProfileLayout } from "@/components/ProfileLayout";
 import { Sheet } from "@/components/Sheet";
 import { useNow } from "@/components/useNow";
 import { useFriends, type Preview } from "@/lib/friendsStore";
+import { useSupabase } from "@/lib/supabase";
 
 const NO_FLIGHTS: never[] = [];
 
@@ -24,6 +25,15 @@ export function FriendProfile({ username }: { username: string }) {
   const [removeError, setRemoveError] = useState<string | null>(null);
   const now = useNow() ?? new Date();
   const friend = friends.find((f) => f.username.toLowerCase() === username.toLowerCase());
+  const supabase = useSupabase();
+  const [count, setCount] = useState<number | null>(null); // only the number; the database shows it to friends only
+  const friendId = friend?.id;
+  useEffect(() => {
+    if (!friendId) return;
+    let alive = true;
+    supabase.rpc("friend_count", { p_user: friendId }).then(({ data }) => { if (alive) setCount(typeof data === "number" ? data : null); });
+    return () => { alive = false; };
+  }, [friendId, supabase]);
 
   // once removed, go back to the list without flashing the limited view
   if (done) return <div className="loading-block" role="status">Removed. Going back…</div>;
@@ -48,6 +58,7 @@ export function FriendProfile({ username }: { username: string }) {
       <ProfileLayout
         who={{ name: friend.name, username: friend.username, home: friend.home, bio: friend.bio, photo: friend.photo, color: friend.color, banner: friend.banner, joined: friend.joined }}
         subtitle={friend.home ? `From ${friend.home}` : "Friend"}
+        friendCount={count ?? undefined}
         flights={flightsOf(friend.id)}
         now={now}
         heroActions={
