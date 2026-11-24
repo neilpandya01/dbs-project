@@ -169,6 +169,12 @@ export function FlightMap({ routes, planes = [], selectedPlane, onSelectPlane, a
       interactive,
     });
     map.current = m;
+    // More responsive zooming. MapLibre's defaults (1/450 for a mouse wheel, 1/100 for a trackpad pinch) feel sluggish,
+    // so each notch / pinch distance now zooms about twice as far.
+    if (interactive) {
+      m.scrollZoom.setWheelZoomRate(1 / 200);
+      m.scrollZoom.setZoomRate(1 / 50);
+    }
     m.addControl(new maplibregl.AttributionControl({ compact: true }), "top-left");
     if (interactive) m.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
