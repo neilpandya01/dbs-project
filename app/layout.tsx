@@ -11,9 +11,15 @@ export const metadata: Metadata = {
   title: { default: "Wingmates", template: "%s · Wingmates" },
   description: "Your flights, your spots, your crew. A free social app for avgeeks.",
   applicationName: "Wingmates",
+  appleWebApp: { capable: true, title: "Wingmates", statusBarStyle: "default" },
+  formatDetection: { telephone: false },
+  icons: { icon: "/icon.svg", apple: "/icons/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover", // draw under the notch / home bar; the CSS pads with safe-area insets
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#cfe9ff" },
     { media: "(prefers-color-scheme: dark)", color: "#123566" },

@@ -1,4 +1,5 @@
 import { Nav } from "@/components/Nav";
+import { PwaSetup } from "@/components/PwaSetup";
 import { Onboarding } from "@/components/Onboarding";
 import { AirportsProvider } from "@/lib/airports";
 import { FlightsProvider } from "@/lib/flightsStore";
@@ -16,6 +17,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <Nav />
               <main className="main">{children}</main>
             <Onboarding />
+              <PwaSetup />
             </div>
           </FlightsProvider>
         </FriendsProvider>
