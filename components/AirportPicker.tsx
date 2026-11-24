@@ -69,7 +69,7 @@ export function AirportPicker({ label, value, onPick, optional }: { label: strin
       />
       {open && (
         <ul className={`combo-list${up ? " up" : ""}`} id={`${id}-list`} role="listbox" aria-label={`${label} results`}>
-          {!query.trim() && <li className="combo-empty">Type a code (ORD), city, or airport name.</li>}
+          {!query.trim() && <li className="combo-empty">Type a code, city, or airport name.</li>}
           {query.trim() && matches.length === 0 && <li className="combo-empty">No airport matches “{query.trim()}”.</li>}
           {matches.map((a, i) => (
             <li

@@ -634,3 +634,24 @@ button.tag-btn:hover { filter: brightness(.95); }
 .combo-field { position: relative; }
 .combo-list.up { top: auto; bottom: calc(100% + 4px); }
 .combo-list { max-height: min(240px, 38dvh); }
+.you-tag { color: var(--accent); font-weight: 700; font-size: 13px; white-space: nowrap; }
+.post.mine { border-left: 4px solid var(--accent); }
+.comment.mine { border-left: 3px solid var(--accent); padding-left: 10px; }
+
+/* photos and attaching them */
+.photos { display: grid; gap: 6px; margin-top: 10px; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+.photos.large { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.photos a { display: block; border-radius: 12px; overflow: hidden; background: var(--surface-2); aspect-ratio: 4 / 3; }
+.photos.large a { aspect-ratio: auto; max-height: 420px; }
+.photos img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photos.large img { object-fit: contain; max-height: 420px; }
+.attach { display: grid; gap: 6px; }
+.attach-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.attach-thumb { position: relative; width: 74px; height: 74px; border-radius: 12px; overflow: hidden; background: var(--surface-2); }
+.attach-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.attach-thumb button { position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; line-height: 1; cursor: pointer; }
+.attach-add { border: 1px dashed var(--border); background: var(--surface); border-radius: 12px; padding: 10px 14px; font-weight: 600; font-size: 14px; color: var(--muted); cursor: pointer; }
+.comment-on { margin: 0 !important; font-size: 13px !important; }
+.comment-edit { display: grid; gap: 8px; margin-top: 6px; }
+.comments-card { padding: 4px 14px; }
+.scope-bar { flex-wrap: wrap; overflow: visible; }

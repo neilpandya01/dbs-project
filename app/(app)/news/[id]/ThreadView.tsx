@@ -4,27 +4,36 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Avatar } from "@/components/Avatar";
+import { CommentItem } from "@/components/CommentItem";
+import { ImageAttach } from "@/components/ImageAttach";
+import { Photos } from "@/components/Photos";
+import { ThreadForm } from "@/components/ThreadForm";
 import { UserLink } from "@/components/UserLink";
+import { YouTag } from "@/components/YouTag";
 import { AIRPORTS } from "@/lib/core";
+import { useFriends } from "@/lib/friendsStore";
 import { useSupabase } from "@/lib/supabase";
 import {
-  COMMENT_COLUMNS, COMMENT_MAX, THREAD_COLUMNS, ago, colorFor, deleteThread, flagThread, voteThread,
-  type Comment, type Thread,
+  COMMENT_COLUMNS, COMMENT_MAX, MAX_COMMENT_IMAGES, THREAD_COLUMNS, addComment, ago, colorFor, deleteComment, deleteThread, editComment,
+  flagThread, saveThread, voteThread, type Comment, type Thread, type ThreadValues,
 } from "@/lib/threads";
 import { useMe } from "@/lib/useMe";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** One thread, in full, with its replies and a box to reply. */
+/** One thread, in full, with its replies and a box to reply. Your own thread and comments can be edited or deleted here. */
 export function ThreadView({ id }: { id: string }) {
   const supabase = useSupabase();
   const me = useMe();
   const router = useRouter();
+  const { friends } = useFriends();
   const [thread, setThread] = useState<Thread | null | undefined>(undefined); // undefined = loading, null = not found
   const [comments, setComments] = useState<Comment[]>([]);
   const [voted, setVoted] = useState(false);
   const [flagged, setFlagged] = useState(false);
   const [text, setText] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -61,6 +70,7 @@ export function ThreadView({ id }: { id: string }) {
   }
 
   const mine = thread.user_id === me.id;
+  const friend = friends.some((f) => f.id === thread.user_id);
 
   const vote = async () => {
     const on = voted;
@@ -76,50 +86,70 @@ export function ThreadView({ id }: { id: string }) {
     if (await flagThread(supabase, thread.id)) setFlagged(false);
   };
   const del = async () => {
-    if (!(await deleteThread(supabase, thread.id))) router.push("/news");
+    if (!(await deleteThread(supabase, thread))) router.push("/news");
+  };
+  const saveEdit = async (v: ThreadValues) => {
+    const res = await saveThread(supabase, me.id, thread, v);
+    if (res.error || !res.thread) return res.error ?? "Couldn’t save the thread.";
+    setThread(res.thread);
+    setEditing(false);
+    return null;
   };
 
   const reply = async (e: React.FormEvent) => {
     e.preventDefault();
     const body = text.trim();
-    if (!body) return;
+    if (!body && files.length === 0) return;
     setBusy(true);
     setError(null);
-    const { data, error: err } = await supabase.from("report_comments").insert({ report_id: thread.id, body }).select(COMMENT_COLUMNS).single();
-    if (err) setError(err.message);
+    const res = await addComment(supabase, me.id, thread.id, body, files);
+    if (res.error || !res.comment) setError(res.error ?? "Couldn’t post your comment.");
     else {
-      setComments((c) => [...c, data as Comment]);
+      setComments((c) => [...c, res.comment!]);
       setThread((t) => (t ? { ...t, comment_count: t.comment_count + 1 } : t));
       setText("");
+      setFiles([]);
       setNow(Date.now());
     }
     setBusy(false);
   };
-  const delComment = async (cid: string) => {
-    const { error: err } = await supabase.from("report_comments").delete().eq("id", cid);
-    if (err) return setError(err.message);
-    setComments((c) => c.filter((x) => x.id !== cid));
+  const saveComment = async (c: Comment, body: string, kept: string[]) => {
+    const res = await editComment(supabase, c, body, kept);
+    if (res.error || !res.comment) return res.error ?? "Couldn’t save.";
+    setComments((cs) => cs.map((x) => (x.id === c.id ? res.comment! : x)));
+    return null;
+  };
+  const delComment = async (c: Comment) => {
+    const err = await deleteComment(supabase, c);
+    if (err) return setError(err);
+    setComments((cs) => cs.filter((x) => x.id !== c.id));
     setThread((t) => (t ? { ...t, comment_count: Math.max(0, t.comment_count - 1) } : t));
   };
 
   return (
     <>
       <Link href="/news" className="back-link">‹ News</Link>
-      <article className="post thread-full">
+      <article className={`post thread-full${mine ? " mine" : ""}`}>
         <UserLink username={thread.author_username}><Avatar name={thread.author_name || thread.author_username} color={colorFor(thread.author_username)} size={42} /></UserLink>
         <div className="post-main">
           <div className="post-head">
             <UserLink username={thread.author_username}><b>@{thread.author_username}</b></UserLink>
-            <span className="muted">{ago(thread.created_at, now)}</span>
+            {mine && <YouTag />}
+            {friend && <span className="badge accent">Friend</span>}
+            <span className="muted">{ago(thread.created_at, now)}{thread.edited_at ? " · edited" : ""}</span>
             <span className="spacer" />
             {thread.airports.map((c) => <span key={c} className="tag mono" title={AIRPORTS[c]?.name}>{c}</span>)}
           </div>
           <h1 className="thread-title">{thread.title}</h1>
           {thread.body && <p className="thread-body">{thread.body}</p>}
+          <Photos images={thread.images} size="large" />
           <div className="post-actions">
             <button className="pill" aria-pressed={voted} onClick={vote}>▲ Helpful · {thread.helpful}</button>
             {mine ? (
-              <button className="pill ghost" onClick={del}>Delete</button>
+              <>
+                <button className="pill ghost" onClick={() => setEditing(true)}>Edit</button>
+                <button className="pill ghost" onClick={del}>Delete</button>
+              </>
             ) : (
               <button className="pill ghost" aria-pressed={flagged} onClick={flag} disabled={flagged}>{flagged ? "Flagged" : "Flag"}</button>
             )}
@@ -131,9 +161,10 @@ export function ThreadView({ id }: { id: string }) {
 
       <form className="comment-form" onSubmit={reply}>
         <textarea className="input" rows={3} value={text} onChange={(e) => setText(e.target.value)} maxLength={COMMENT_MAX} placeholder="Add a comment…" aria-label="Add a comment" />
+        <ImageAttach kept={[]} onKeptChange={() => {}} files={files} onFilesChange={setFiles} max={MAX_COMMENT_IMAGES} />
         <div className="comment-form-row">
           <small className="muted">{text.length}/{COMMENT_MAX}</small>
-          <button type="submit" className="btn primary" disabled={busy || !text.trim()}>{busy ? "Posting…" : "Reply"}</button>
+          <button type="submit" className="btn primary" disabled={busy || (!text.trim() && files.length === 0)}>{busy ? "Posting…" : "Reply"}</button>
         </div>
         {error && <p className="msg err" role="alert">{error}</p>}
       </form>
@@ -141,20 +172,18 @@ export function ThreadView({ id }: { id: string }) {
       <div className="comments">
         {comments.length === 0 && <p className="muted empty-line">No comments yet. Start the conversation.</p>}
         {comments.map((c) => (
-          <div key={c.id} className="comment">
-            <UserLink username={c.author_username}><Avatar name={c.author_name || c.author_username} color={colorFor(c.author_username)} size={32} /></UserLink>
-            <div className="comment-main">
-              <div className="post-head">
-                <UserLink username={c.author_username}><b>@{c.author_username}</b></UserLink>
-                <span className="muted">{ago(c.created_at, now)}</span>
-                <span className="spacer" />
-                {c.user_id === me.id && <button className="pill ghost" onClick={() => delComment(c.id)}>Delete</button>}
-              </div>
-              <p>{c.body}</p>
-            </div>
-          </div>
+          <CommentItem
+            key={c.id}
+            c={c}
+            now={now}
+            mine={c.user_id === me.id}
+            onSave={(body, kept) => saveComment(c, body, kept)}
+            onDelete={() => delComment(c)}
+          />
         ))}
       </div>
+
+      {editing && <ThreadForm thread={thread} onClose={() => setEditing(false)} onSave={saveEdit} />}
     </>
   );
 }

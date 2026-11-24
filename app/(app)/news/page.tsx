@@ -8,7 +8,7 @@ export default function NewsPage() {
     <>
       <div className="page-head">
         <h1>News</h1>
-        <p>What’s happening at airports, reported by people on Wingmates.</p>
+        <p>Reports from Wingmates users about what’s happening at airports.</p>
       </div>
       <NewsView />
     </>
