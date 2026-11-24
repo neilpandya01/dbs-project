@@ -75,8 +75,10 @@ Deno.serve(async (req) => {
   if (flights.length === 0) return Response.json({ watchers: watching.length, flights: 0 });
 
   const codes = [...new Set(flights.flatMap((f) => [f.from_airport, f.to_airport]))];
-  const { data: aps } = await db.from("airports").select("code,lat,lon").in("code", codes);
-  const airports = new Map((aps ?? []).map((a) => [a.code as string, { lat: a.lat as number, lon: a.lon as number }]));
+  // elevation_ft arrives with a later migration; until it exists, ask without it and treat every field as unknown height
+  let aps: { code: string; lat: number; lon: number; elevation_ft?: number | null }[] | null = (await db.from("airports").select("code,lat,lon,elevation_ft").in("code", codes)).data;
+  if (!aps) aps = (await db.from("airports").select("code,lat,lon").in("code", codes)).data;
+  const airports = new Map((aps ?? []).map((a) => [a.code, { lat: a.lat, lon: a.lon, elevFt: a.elevation_ft ?? null }]));
 
   const { data: stored } = await db.from("live_positions").select("*").in("flight_id", flights.map((f) => f.id));
   const known = new Map((stored ?? []).map((r) => [r.flight_id as string, r]));
@@ -155,7 +157,7 @@ Deno.serve(async (req) => {
       i.regMissed = false;
       i.polledAt = Date.now();
       if (!sightings) continue;
-      i.state = step(i.state, pickSighting(mine, i.from, i.to, i.state, i.callsigns), i.to, Date.now());
+      i.state = step(i.state, pickSighting(mine, i.from, i.to, i.state, i.callsigns), i.from, i.to, Date.now());
       dirty.push({
         flight_id: i.f.id, user_id: i.f.user_id, stage: i.state.stage, hex: i.state.hex ?? null,
         lat: i.state.lat ?? null, lon: i.state.lon ?? null, alt_ft: i.state.altFt ?? null,

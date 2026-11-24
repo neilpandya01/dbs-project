@@ -53,6 +53,7 @@ const rows = airports
     continent: CONTINENT[a.continent] ?? a.continent,
     lat: Number(a.latitude_deg),
     lon: Number(a.longitude_deg),
+    elevation_ft: a.elevation_ft === "" ? null : Math.round(Number(a.elevation_ft)),
     kind: KIND[a.type],
   }))
   .filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lon));

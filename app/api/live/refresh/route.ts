@@ -40,8 +40,10 @@ export async function POST() {
   if (flights.length === 0) return NextResponse.json({ checked: 0, notes: [] });
 
   const codes = [...new Set(flights.flatMap((f) => [f.from_airport, f.to_airport]))];
-  const { data: aps } = await db.from("airports").select("code,lat,lon").in("code", codes);
-  const airports = new Map((aps ?? []).map((a) => [a.code as string, { lat: a.lat as number, lon: a.lon as number }]));
+  // elevation_ft arrives with a later migration; until it exists, ask without it and treat every field as unknown height
+  let aps: { code: string; lat: number; lon: number; elevation_ft?: number | null }[] | null = (await db.from("airports").select("code,lat,lon,elevation_ft").in("code", codes)).data;
+  if (!aps) aps = (await db.from("airports").select("code,lat,lon").in("code", codes)).data;
+  const airports = new Map((aps ?? []).map((a) => [a.code, { lat: a.lat, lon: a.lon, elevFt: a.elevation_ft ?? null }]));
   const { data: stored } = await db.from("live_positions").select("*").in("flight_id", flights.map((f) => f.id));
   const known = new Map((stored ?? []).map((r) => [r.flight_id as string, r]));
 
@@ -93,7 +95,7 @@ export async function POST() {
       ? { stage: r.stage, hex: r.hex, lat: r.lat, lon: r.lon, altFt: r.alt_ft, speedKt: r.speed_kt, trackDeg: r.track_deg, onGround: r.on_ground, takeoffAt: r.takeoff_at ? Date.parse(r.takeoff_at) : null, seenAt: r.seen_at ? Date.parse(r.seen_at) : null }
       : { stage: "waiting" };
     const hit = pickSighting(sightings, from, to, before, callsigns);
-    const after = step(before, hit, to, Date.now());
+    const after = step(before, hit, from, to, Date.now());
     await db.from("live_positions").upsert({
       flight_id: f.id, user_id: f.user_id, stage: after.stage, hex: after.hex ?? null, lat: after.lat ?? null, lon: after.lon ?? null,
       alt_ft: after.altFt ?? null, speed_kt: after.speedKt ?? null, track_deg: after.trackDeg ?? null, on_ground: !!after.onGround,
