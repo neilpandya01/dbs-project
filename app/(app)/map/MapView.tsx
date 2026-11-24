@@ -13,6 +13,7 @@ import { useFriends } from "@/lib/friendsStore";
 import { liveFlight } from "@/lib/live";
 import { useLivePositions, type LivePos } from "@/lib/livePositions";
 import { bearing, distanceMiles } from "@/lib/geo";
+import { livePhase, phaseLabel, type Phase } from "@/lib/liveDisplay";
 
 type Mode = "all" | "mine" | "friends";
 
@@ -45,7 +46,7 @@ type Item = {
   owner: string;
   photo?: string | null;
   /** On its way right now: how far along (from its real position) and its scheduled arrival. */
-  live?: { progress: number; lands?: string; real?: LivePos };
+  live?: { progress: number; lands?: string; real: LivePos; phase: Phase };
   miles: number;
   search: string;
 };
@@ -55,7 +56,7 @@ const MINE_COLOR = "#1f7ff0";
 const searchText = (f: Flight, who: string) =>
   `${who} ${f.number ?? ""} ${f.from} ${f.to} ${f.airline ?? ""} ${f.aircraft ?? ""} ${AIRPORTS[f.from]?.city ?? ""} ${AIRPORTS[f.to]?.city ?? ""}`.toLowerCase();
 
-type LiveEntry = { name: string; username: string; color: string; photo: string | null; flight: Flight; progress: number; real?: LivePos };
+type LiveEntry = { name: string; username: string; color: string; photo: string | null; flight: Flight; progress: number; real: LivePos; phase: Phase };
 
 /** How far along the route a real position is: the share of the (from -> here -> to) distance already flown. */
 function progressOf(f: Flight, p: LivePos) {
@@ -70,14 +71,14 @@ function buildItems(myFlights: Flight[], friendLive: LiveEntry[]): Item[] {
       id: l.flight.id,
       kind: "friend",
       title: `${l.flight.from} → ${l.flight.to}`,
-      sub: [l.flight.number, l.flight.aircraft].filter(Boolean).join(" · ") || "In flight",
+      sub: [l.flight.number, l.flight.aircraft].filter(Boolean).join(" · ") || phaseLabel(l.phase, l.real),
       number: l.flight.number ?? `${l.flight.from}–${l.flight.to}`,
       from: l.flight.from,
       to: l.flight.to,
       color: l.color,
       owner: l.name,
       photo: l.photo,
-      live: { progress: l.progress, lands: toLeg(l.flight).arrText, real: l.real },
+      live: { progress: l.progress, lands: toLeg(l.flight).arrText, real: l.real, phase: l.phase },
       miles: Math.round(flightMiles(l.flight)),
       search: searchText(l.flight, `${l.name} ${l.username}`),
     })),
@@ -106,20 +107,27 @@ export function MapView() {
   const { positions: real, down: trackingDown } = useLivePositions(true); // also tells the tracker you're watching, so it follows these flights
   // the map is your history: only flights that have landed
   const myFlights = useMemo(() => flights.filter((f) => isPast(f, now)), [flights, now]);
-  // Friends in the air right now: only where the live tracker has a real position. No real position, no plane:
-  // an estimate from the schedule would say a delayed or cancelled flight is already flying.
+  const tick = useNow(5000) ?? new Date(); // re-checks every few seconds which positions have gone stale
+  // Friends shown on the map: only where the tracker has a fresh, real position, and it makes sense for the stage:
+  // at the departure airport, in flight, or at the arrival airport. A plane that went off radar is simply not shown,
+  // and nothing is ever estimated from the schedule (that would show a delayed or cancelled flight as flying).
   const friendLive = useMemo(
     () =>
       friends.flatMap((fr) => {
-        const flight = flightsOf(fr.id).find((f) => real[f.id]);
-        return flight ? [{ name: fr.name, username: fr.username, color: fr.color, photo: fr.photo, flight, progress: progressOf(flight, real[flight.id]), real: real[flight.id] }] : [];
+        for (const flight of flightsOf(fr.id)) {
+          const p = real[flight.id];
+          if (!p) continue;
+          const phase = livePhase(p, AIRPORTS[flight.from].lngLat, AIRPORTS[flight.to].lngLat, tick.getTime());
+          if (phase) return [{ name: fr.name, username: fr.username, color: fr.color, photo: fr.photo, flight, phase, progress: phase === "airborne" ? progressOf(flight, p) : 0, real: p }];
+        }
+        return [];
       }),
-    [friends, flightsOf, real]
+    [friends, flightsOf, real, tick]
   );
-  // Only used for the "can't load" notice below: a friend's flight is scheduled to be flying but has no real position.
+  // Only used for the "can't load" notice below: a friend's flight is scheduled to be flying but isn't shown.
   const scheduledButUnseen = useMemo(
-    () => friends.some((fr) => { const l = liveFlight(flightsOf(fr.id), now); return !!l && !real[l.flight.id]; }),
-    [friends, flightsOf, now, real]
+    () => friends.some((fr) => { const l = liveFlight(flightsOf(fr.id), now); return !!l && !friendLive.some((x) => x.flight.id === l.flight.id); }),
+    [friends, flightsOf, now, friendLive]
   );
   const ITEMS = useMemo(() => buildItems(myFlights, friendLive), [myFlights, friendLive]);
   const [mode, setMode] = useState<Mode>("all");
@@ -140,22 +148,25 @@ export function MapView() {
     });
   }, [ITEMS, mode, query]);
 
-  const routes: MapRoute[] = visible.map((i) => ({
-    id: i.id,
-    from: i.from,
-    to: i.to,
-    color: i.color,
-    highlight: i.id === selected,
-    progress: i.live?.progress,
-    pos: i.live?.real ? ([i.live.real.lon, i.live.real.lat] as [number, number]) : undefined,
-  }));
+  // At the departure airport the planned route is drawn plain; in flight it's solid to the plane and dotted from it;
+  // at the arrival airport there's no route (the flight is over).
+  const routes: MapRoute[] = visible
+    .filter((i) => i.live?.phase !== "arrival")
+    .map((i) => ({
+      id: i.id,
+      from: i.from,
+      to: i.to,
+      color: i.color,
+      highlight: i.id === selected,
+      progress: i.live?.phase === "airborne" ? i.live.progress : undefined,
+      pos: i.live?.phase === "airborne" ? ([i.live.real.lon, i.live.real.lat] as [number, number]) : undefined,
+    }));
   const planes: MapPlane[] = visible
     .filter((i) => i.live)
     .map((i) => ({
       id: i.id, label: i.owner.split(" ")[0], name: i.owner, color: i.color, photo: i.photo, from: i.from, to: i.to, progress: i.live!.progress,
-      pos: i.live!.real ? ([i.live!.real.lon, i.live!.real.lat] as [number, number]) : undefined,
-      // point at the destination (the way the dotted line leaves the plane), not the raw track, which wobbles
-      heading: i.live!.real ? bearing([i.live!.real.lon, i.live!.real.lat], AIRPORTS[i.to].lngLat) : undefined,
+      pos: [i.live!.real.lon, i.live!.real.lat] as [number, number],
+      heading: bearing([i.live!.real.lon, i.live!.real.lat], AIRPORTS[i.to].lngLat),
     }));
 
   // who has been to each airport
@@ -232,7 +243,7 @@ export function MapView() {
                     {i.live?.real?.seenAt && <> · <Ago iso={i.live.real.seenAt} /></>}
                   </span>
                 </span>
-                {i.live && <span className="badge good"><span className="dot pulse" />Live</span>}
+                {i.live && <span className="badge good"><span className="dot pulse" />{phaseLabel(i.live.phase, i.live.real)}</span>}
               </button>
             </div>
           ))}
@@ -280,11 +291,12 @@ export function MapView() {
               <span><b>{sel.miles.toLocaleString()}</b> mi</span>
               {sel.live ? (
                 <>
-                  <span><b>{Math.round(sel.live.progress * 100)}%</b> there</span>
-                  {sel.live.lands && <span>scheduled arrival <b>{sel.live.lands}</b></span>}
+                  <span><b>{phaseLabel(sel.live.phase, sel.live.real)}</b></span>
+                  {sel.live.phase === "airborne" && <span><b>{Math.round(sel.live.progress * 100)}%</b> there</span>}
+                  {sel.live.lands && sel.live.phase !== "arrival" && <span>scheduled arrival <b>{sel.live.lands}</b></span>}
                   <span className="muted">
-                    {[sel.live.real?.altFt != null && `${sel.live.real.altFt.toLocaleString()} ft`, sel.live.real?.speedKt != null && `${sel.live.real.speedKt} kt`].filter(Boolean).join(" · ")}
-                    {sel.live.real?.seenAt ? <>{" · "}<Ago iso={sel.live.real.seenAt} /></> : " · live position"}
+                    {[sel.live.phase === "airborne" && sel.live.real.altFt != null && `${sel.live.real.altFt.toLocaleString()} ft`, sel.live.real.speedKt != null && `${sel.live.real.speedKt} kt`].filter(Boolean).join(" · ")}
+                    {sel.live.real.seenAt ? <>{" · "}<Ago iso={sel.live.real.seenAt} /></> : null}
                   </span>
                 </>
               ) : (

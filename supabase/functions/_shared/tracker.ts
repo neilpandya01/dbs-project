@@ -39,28 +39,26 @@ export type State = {
 // ---- tuning --------------------------------------------------------------------------------------
 export const T = {
   /** start looking this long before the scheduled departure */
-  LEAD_MS: 15 * 60_000,
-  /** keep looking this long after the scheduled arrival */
-  TAIL_MS: 60 * 60_000,
-  /** a flight still in the air is followed at most this long past its scheduled arrival */
-  HARD_CAP_MS: 6 * 3_600_000,
-  /** how often a waiting flight is checked */
-  WAIT_EVERY_MS: 3 * 60_000,
-  /** pause between requests to adsb.fi */
+  LEAD_MS: 30 * 60_000,
+  /** stop looking this long after the scheduled arrival (a flight delayed past this is simply not followed) */
+  TAIL_MS: 2 * 3_600_000,
+  /** pause between requests to adsb.fi: the same for every flight, whether parked, taxiing or flying */
   SPACING_MS: 2000,
   /** ignore positions older than this */
   MAX_AGE_S: 120,
-  /** landed = on the ground within this many miles of the destination */
+  /** on the ground within this many miles of the destination = landed */
   LAND_RADIUS_MI: 15,
   /** moving at least this fast and not flagged as on the ground = flying (a plane taxiing or parked never is) */
   FLYING_KT: 100,
-  /** a rejected takeoff / quick return is only believed within this long after "takeoff" */
+  /** "in flight" starts once the plane is both this high above the field and this far from the departure airport */
+  AIRBORNE_AGL_FT: 1000,
+  AIRBORNE_MIN_MI: 5,
+  /** when the field's height isn't known, use distance alone (further out, since altitude can't be judged) */
+  AIRBORNE_MIN_MI_UNKNOWN_ELEV: 8,
+  /** a rejected takeoff (back on the ground at the origin) is only believed within this long after "takeoff" */
   TAKEOFF_GRACE_MS: 5 * 60_000,
-  /** last heard low (under 3,000 ft above the field) within this many miles of the destination, then silent this long = landed */
-  LOW_SILENT_MS: 6 * 60_000,
-  LOW_NEAR_MI: 30,
-  LOW_AGL_FT: 3000,
-  GIVE_UP_MS: 90 * 60_000,
+  /** a landed plane that hasn't been heard from for this long is done: stop asking about it */
+  LANDED_QUIET_MS: 10 * 60_000,
 };
 
 // ---- geometry ------------------------------------------------------------------------------------
@@ -135,11 +133,14 @@ export function flightWindow(f: FlightRow, from: Airport, to: Airport): { dep: n
   return flightTimes(f, from, to) ?? { dep: Date.parse(`${f.flown_on}T00:00:00Z`) - 12 * 3_600_000, arr: Date.parse(`${f.flown_on}T23:59:59Z`) };
 }
 
-/** Is this flight worth looking at right now? Airborne flights are followed until they land. */
-export function inWindow(now: number, t: { dep: number; arr: number }, stage: Stage) {
-  if (stage === "landed") return false;
-  if (now < t.dep - T.LEAD_MS) return false;
-  return now <= t.arr + (stage === "airborne" ? T.HARD_CAP_MS : T.TAIL_MS);
+/**
+ * Is this flight worth asking about right now? From 30 minutes before scheduled departure until 2 hours after
+ * scheduled arrival, whatever stage it's in. A landed plane that has gone quiet is finished.
+ */
+export function inWindow(now: number, t: { dep: number; arr: number }, state: Pick<State, "stage" | "seenAt">) {
+  if (now < t.dep - T.LEAD_MS || now > t.arr + T.TAIL_MS) return false;
+  if (state.stage === "landed" && state.seenAt != null && now - state.seenAt > T.LANDED_QUIET_MS) return false;
+  return true;
 }
 
 /** "UA 2679" -> "UAL2679". Null when the airline isn't known. */
@@ -218,44 +219,41 @@ const aglFt = (altFt: number, apt: Airport) => (apt.elevFt != null ? altFt - apt
 
 /**
  * One step: given what we knew and what we just saw (or null if the aircraft wasn't found), return the new state.
- *   waiting  -> airborne: flagged as airborne and moving at flying speed (speed, not altitude: altitude is above sea
- *                         level, which at a high airport like Denver says nothing about being off the ground)
- *   airborne -> landed:   on the ground near the destination (or on its runway without a ground flag),
- *                         or on the ground anywhere else a few minutes after takeoff (diverted, or came back),
- *                         or last heard low near the destination and silent for a while
- *   airborne -> waiting:  back on the ground at the origin within minutes of "takeoff" (a rejected takeoff)
- * Being low on approach is NOT enough to count as landed: the plane has to be on the ground.
+ * A plane that isn't found changes nothing: no guessing where it went. (The Map simply stops showing a plane whose
+ * last position is old.)
+ *
+ *   waiting  (on the ground at the departure airport, or just off it): follows the plane, stays "waiting"
+ *       -> airborne once it is flagged airborne, flying fast, high enough above the field AND far enough from the airport
+ *   airborne -> landed:  on the ground near the destination (or on its runway at field height without a ground flag)
+ *                        or on the ground anywhere else a few minutes after takeoff (came back, or diverted)
+ *            -> waiting: back on the ground at the origin within minutes of "takeoff" (a rejected takeoff)
+ *   landed   keeps following the plane while it still reports (taxiing in, at the gate); positions keep updating
+ * Speed, not altitude, tells flying from taxiing: altitude is above sea level, which at a high airport like Denver says
+ * nothing about being off the ground.
  */
 export function step(prev: State, s: Sighting | null, from: Airport, to: Airport, now: number): State {
-  if (prev.stage === "landed") return prev;
+  if (!s) return prev;
 
-  if (s) {
-    const seenAt = now - s.ageS * 1000;
-    const next: State = { ...prev, hex: s.hex, lat: s.lat, lon: s.lon, altFt: s.altFt, speedKt: s.speedKt ?? null, trackDeg: s.trackDeg ?? null, onGround: s.onGround, seenAt };
-    if (prev.stage === "waiting") {
-      const flying = !s.onGround && (s.speedKt ?? 0) >= T.FLYING_KT;
-      return flying ? { ...next, stage: "airborne", takeoffAt: seenAt } : next;
-    }
-    // airborne
-    const agl = aglFt(s.altFt, to);
-    const onRunway = agl != null && agl <= 100 && miles(s, to) <= 5; // down, but the plane never sent a ground flag
-    if ((s.onGround || onRunway) && miles(s, to) <= T.LAND_RADIUS_MI) return { ...next, stage: "landed" };
-    if (s.onGround) {
-      const sinceTakeoff = prev.takeoffAt == null ? Infinity : now - prev.takeoffAt;
-      if (sinceTakeoff < T.TAKEOFF_GRACE_MS && miles(s, from) <= T.LAND_RADIUS_MI) return { ...next, stage: "waiting", takeoffAt: null }; // rejected takeoff
-      if (sinceTakeoff >= T.TAKEOFF_GRACE_MS) return { ...next, stage: "landed" }; // came back, or diverted somewhere else
-    }
-    return next;
+  const seenAt = now - s.ageS * 1000;
+  const next: State = { ...prev, hex: s.hex, lat: s.lat, lon: s.lon, altFt: s.altFt, speedKt: s.speedKt ?? null, trackDeg: s.trackDeg ?? null, onGround: s.onGround, seenAt };
+  if (prev.stage === "landed") return next;
+
+  if (prev.stage === "waiting") {
+    const flying = !s.onGround && (s.speedKt ?? 0) >= T.FLYING_KT;
+    const agl = aglFt(s.altFt, from);
+    const dFrom = miles(s, from);
+    const clear = agl != null ? agl >= T.AIRBORNE_AGL_FT && dFrom >= T.AIRBORNE_MIN_MI : dFrom >= T.AIRBORNE_MIN_MI_UNKNOWN_ELEV;
+    return flying && clear ? { ...next, stage: "airborne", takeoffAt: seenAt } : next;
   }
 
-  // not found
-  if (prev.stage === "airborne" && prev.seenAt != null) {
-    const silent = now - prev.seenAt;
-    const last = prev.lat != null && prev.lon != null ? { lat: prev.lat, lon: prev.lon } : null;
-    const agl = prev.altFt != null ? aglFt(prev.altFt, to) : null;
-    const low = agl != null ? agl < T.LOW_AGL_FT : (prev.altFt ?? Infinity) < 12000; // unknown field height: be generous
-    const lowNearDest = last != null && miles(last, to) <= T.LOW_NEAR_MI && low;
-    if (silent >= T.GIVE_UP_MS || (silent >= T.LOW_SILENT_MS && lowNearDest)) return { ...prev, stage: "landed" };
+  // airborne
+  const aglTo = aglFt(s.altFt, to);
+  const onRunway = aglTo != null && aglTo <= 100 && miles(s, to) <= 5; // down, but the plane never sent a ground flag
+  if ((s.onGround || onRunway) && miles(s, to) <= T.LAND_RADIUS_MI) return { ...next, stage: "landed" };
+  if (s.onGround) {
+    const sinceTakeoff = prev.takeoffAt == null ? Infinity : now - prev.takeoffAt;
+    if (sinceTakeoff < T.TAKEOFF_GRACE_MS && miles(s, from) <= T.LAND_RADIUS_MI) return { ...next, stage: "waiting", takeoffAt: null }; // rejected takeoff
+    if (sinceTakeoff >= T.TAKEOFF_GRACE_MS) return { ...next, stage: "landed" }; // came back, or diverted somewhere else
   }
-  return prev;
+  return next;
 }

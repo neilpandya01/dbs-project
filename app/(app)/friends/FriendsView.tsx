@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Avatar } from "@/components/Avatar";
 import { useFriends, type Person, type Relation } from "@/lib/friendsStore";
+import { AIRPORTS } from "@/lib/core";
+import { livePhase } from "@/lib/liveDisplay";
 import { useLivePositions } from "@/lib/livePositions";
 import { useProfile } from "@/lib/profileStore";
 
@@ -26,7 +28,10 @@ export function FriendsView() {
   // (Having this page open also tells the tracker to follow their flights.)
   const { positions: real } = useLivePositions(true);
   const liveOf = useCallback((id: string) => {
-    const flight = flightsOf(id).find((f) => real[f.id]);
+    const flight = flightsOf(id).find((f) => {
+      const p = real[f.id];
+      return p && livePhase(p, AIRPORTS[f.from].lngLat, AIRPORTS[f.to].lngLat, Date.now()) === "airborne";
+    });
     return flight ? { flight } : null;
   }, [flightsOf, real]);
 

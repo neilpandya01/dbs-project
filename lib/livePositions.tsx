@@ -6,6 +6,8 @@ import { useSupabase } from "./supabase";
 /** Where an aircraft really is right now (from the live tracker), for one flight. */
 export type LivePos = {
   flightId: string;
+  stage: "waiting" | "airborne" | "landed";
+  onGround: boolean;
   lat: number;
   lon: number;
   altFt: number | null;
@@ -14,11 +16,11 @@ export type LivePos = {
   seenAt: string | null;
 };
 
-type Row = { flight_id: string; stage: string; lat: number | null; lon: number | null; alt_ft: number | null; speed_kt: number | null; track_deg: number | null; seen_at: string | null };
+type Row = { flight_id: string; stage: string; on_ground: boolean | null; lat: number | null; lon: number | null; alt_ft: number | null; speed_kt: number | null; track_deg: number | null; seen_at: string | null };
 
 const toPos = (r: Row): LivePos | null =>
-  r.stage === "airborne" && r.lat != null && r.lon != null
-    ? { flightId: r.flight_id, lat: r.lat, lon: r.lon, altFt: r.alt_ft, speedKt: r.speed_kt, trackDeg: r.track_deg, seenAt: r.seen_at }
+  (r.stage === "airborne" || r.stage === "waiting" || r.stage === "landed") && r.lat != null && r.lon != null
+    ? { flightId: r.flight_id, stage: r.stage, onGround: !!r.on_ground, lat: r.lat, lon: r.lon, altFt: r.alt_ft, speedKt: r.speed_kt, trackDeg: r.track_deg, seenAt: r.seen_at }
     : null;
 
 const HEARTBEAT_MS = 30_000;
@@ -47,7 +49,7 @@ export function useLivePositions(watching: boolean) {
       supabase.rpc("live_heartbeat").then(({ error }) => { if (error) console.debug("live heartbeat failed:", error.message); });
     };
     const load = async () => {
-      const { data } = await supabase.from("live_positions").select("*").eq("stage", "airborne");
+      const { data } = await supabase.from("live_positions").select("*");
       if (!alive || !data) return;
       const next: Record<string, LivePos> = {};
       for (const r of data as Row[]) { const p = toPos(r); if (p) next[p.flightId] = p; }
@@ -89,7 +91,7 @@ export function useLivePositions(watching: boolean) {
         const p = toPos(r);
         setByFlight((m) => {
           if (p) return { ...m, [r.flight_id]: p };
-          const { [r.flight_id]: _gone, ...rest } = m; // landed or no longer airborne
+          const { [r.flight_id]: _gone, ...rest } = m; // no usable position
           return rest;
         });
       })

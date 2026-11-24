@@ -1,9 +1,9 @@
 // Live flight tracker. Supabase cron calls this about once a minute; each run does a stretch of work and returns.
 //
 //   1. Find who has the map open (live_watchers). Track their friends' flights, only.
-//   2. Flights whose window is open (15 min before departure until an hour after arrival) are "waiting"
-//      (checked every few minutes) until they're seen flying, then "airborne" (checked in a ~2 second
-//      round-robin, one request to adsb.fi at a time) until seen on the ground near the destination, "landed".
+//   2. Flights whose window is open (30 min before scheduled departure until 2 hours after scheduled arrival) are
+//      all asked about in one ~2 second round-robin, one request to adsb.fi at a time: "waiting" while on the ground
+//      at the departure airport, "airborne" in flight, "landed" once on the ground near the destination.
 //   3. Each result is written to live_positions; the map listens for those changes.
 // With few flights each one is refreshed often; with many, the wait between refreshes grows on its own.
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
     const state: State = r
       ? { stage: r.stage, hex: r.hex, lat: r.lat, lon: r.lon, altFt: r.alt_ft, speedKt: r.speed_kt, trackDeg: r.track_deg, onGround: r.on_ground, takeoffAt: r.takeoff_at ? Date.parse(r.takeoff_at) : null, seenAt: r.seen_at ? Date.parse(r.seen_at) : null }
       : { stage: "waiting" };
-    if (!inWindow(startedAt, t, state.stage)) continue;
+    if (!inWindow(startedAt, t, state)) continue;
     items.push({ f, from, to, t, state, polledAt: r?.polled_at ? Date.parse(r.polled_at) : 0, callsigns: callsignCandidates(f.flight_number) });
   }
 
@@ -100,14 +100,13 @@ Deno.serve(async (req) => {
   let requests = 0, updated = 0, stopped: string | null = null;
   while (Date.now() < deadline) {
     const now = Date.now();
+    // every flight in its window is asked about on the same 2-second beat, whatever it is doing
     const due = items
-      .filter((i) => i.state.stage !== "landed" && (i.state.stage === "airborne" ? now - i.polledAt >= T.SPACING_MS : now - i.polledAt >= T.WAIT_EVERY_MS))
+      .filter((i) => inWindow(now, i.t, i.state) && now - i.polledAt >= T.SPACING_MS)
       .sort((a, b) => a.polledAt - b.polledAt);
     if (due.length === 0) {
-      const live = items.some((i) => i.state.stage === "airborne");
-      const nextWait = Math.min(...items.filter((i) => i.state.stage === "waiting").map((i) => i.polledAt + T.WAIT_EVERY_MS), Infinity);
-      if (!live && nextWait > deadline) break; // nothing to do for the rest of this run
-      await sleep(Math.min(1000, deadline - now));
+      if (!items.some((i) => inWindow(now, i.t, i.state))) break; // nothing left to follow in this run
+      await sleep(Math.min(500, deadline - now));
       continue;
     }
 

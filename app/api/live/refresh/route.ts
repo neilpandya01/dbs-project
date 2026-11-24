@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { T, callsignCandidates, flightTimes, parseSightings, pickSighting, step, type FlightRow, type Sighting, type State } from "../../../../supabase/functions/_shared/tracker.ts";
+import { callsignCandidates, flightWindow, inWindow, parseSightings, pickSighting, step, type FlightRow, type Sighting, type State } from "../../../../supabase/functions/_shared/tracker.ts";
 
 /**
  * "Where is my friends' plane right now?", answered on the spot. The Map calls this when it opens, so a friend
@@ -13,7 +13,6 @@ import { T, callsignCandidates, flightTimes, parseSightings, pickSighting, step,
 const ADSB = "https://opendata.adsb.fi/api/v2";
 const MAX_FLIGHTS = 8;
 const RECENT_MS = 10_000; // don't ask again about a flight asked about this recently
-const AFTER_ARRIVAL_MS = 6 * 3_600_000;
 
 type Note = { flight: string; result: string };
 
@@ -55,12 +54,12 @@ export async function POST() {
     const from = airports.get(f.from_airport), to = airports.get(f.to_airport);
     if (!from || !to) continue;
 
-    // could it be in the air now? Use its times when it has them; with none, any flight dated today qualifies.
-    const t = flightTimes(f, from, to);
-    if (t && (now < t.dep - T.LEAD_MS || now > t.arr + AFTER_ARRIVAL_MS)) { notes.push({ flight: label, result: "outside its flying window" }); continue; }
-
+    // inside its window (30 min before scheduled departure to 2 hours after scheduled arrival)? A flight with no
+    // departure time counts as possible all day.
+    const t = flightWindow(f, from, to);
     const r = known.get(f.id);
-    if (r?.stage === "landed") { notes.push({ flight: label, result: "already landed" }); continue; }
+    const seenAt = r?.seen_at ? Date.parse(r.seen_at) : null;
+    if (!inWindow(now, t, { stage: r?.stage ?? "waiting", seenAt })) { notes.push({ flight: label, result: "outside its tracking window" }); continue; }
     if (r?.polled_at && now - Date.parse(r.polled_at) < RECENT_MS) { notes.push({ flight: label, result: "checked a moment ago" }); continue; }
 
     const callsigns = callsignCandidates(f.flight_number);

@@ -40,11 +40,15 @@ a "remove user" button more easily accessible.
 ## Live tracking setup
 
 Friends' flights are followed by an edge function (`supabase/functions/live-tracker`) that Supabase cron runs every
-minute. It only tracks flights of friends of people who have the Map open (the map sends a heartbeat). A flight is
-**waiting** from 15 minutes before departure (checked every 3 minutes), **airborne** once adsb.fi sees it flying
-(a request every 2 seconds, round-robin, so more flights means longer between updates for each), and **landed** once
-it's on the ground or very low near its destination. Positions are written to `live_positions` and pushed to the map
-with Supabase Realtime. One-time setup:
+minute, and also checked on the spot whenever someone opens the Map. Only friends of people who have the Map open are
+followed (the page sends a heartbeat). Each flight is followed from **30 minutes before its scheduled departure until 2
+hours after its scheduled arrival**, one adsb.fi request at a time, every 2 seconds in a round-robin (so more flights
+means longer between updates for each), whether the plane is parked, taxiing or flying. A friend's profile picture
+appears on the Map only when there is a fresh, real position, in three situations: on the ground at (or just off) the
+departure airport, in flight (once it is both well above the field and several miles from the airport), or on the ground at
+the arrival airport while it is still reporting. A plane that goes off radar (no position for 2 minutes) is not shown,
+and nothing is ever estimated from the schedule. Known weakness: a flight delayed past the end of its window is not followed.
+Positions are written to `live_positions` and pushed to the map with Supabase Realtime. One-time setup:
 
 1. Run `supabase/migrations/20261122000000_live_tracking.sql` in the SQL Editor.
 2. Turn on the `pg_cron` and `pg_net` extensions (Database → Extensions).
