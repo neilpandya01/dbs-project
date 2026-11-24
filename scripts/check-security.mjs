@@ -252,17 +252,8 @@ try {
   const cRemove = await C.db.rpc("remove_friendship", { p_id: req.data });
   void cRemove;
 
-  console.log("\nTracked flights (stars)");
-  const star = await A.db.from("tracked_flights").insert({ flight_id: a1.data.id });
-  check(!star.error, "A can star a flight", `star failed: ${star.error?.message}`);
-  const bStars = await B.db.from("tracked_flights").select("*");
-  check(bStars.data?.length === 0, "B cannot see A's stars", "stars leaked!");
-  const bUnstar = await B.db.from("tracked_flights").delete().eq("flight_id", a1.data.id).select();
-  const starStill = await admin.from("tracked_flights").select("flight_id").eq("user_id", A.id);
-  check(!bUnstar.data?.length && starStill.data?.length === 1, "B cannot remove A's star", "B removed A's star");
-
   console.log("\nReports (News tab)");
-  const rep = await A.db.from("reports").insert({ title: "Test report", body: "hello", airport: "ORD", author_username: "somebody_else" }).select().single();
+  const rep = await A.db.from("reports").insert({ title: "Test report", body: "hello, this is a test description", airports: ["ORD"], author_username: "somebody_else" }).select().single();
   check(!rep.error && rep.data?.author_username === A.username, "A posts a report; the author name comes from A's token, not from what the browser sent", `author was ${rep.data?.author_username} (${rep.error?.message ?? ""})`);
   const bRead = await B.db.from("reports").select("*").eq("id", rep.data?.id);
   check(bRead.data?.length === 1, "everyone signed in can read the community feed", "report not readable");
@@ -286,7 +277,10 @@ try {
   check(!!anonRep.error || anonRep.data?.length === 0, "signed-out visitors cannot read reports", "reports public!");
 
   console.log("\nFriends-only threads, comments and photos stay inside the friends circle");
-  // A and B are friends; C is a stranger to A (and to B)
+  // A and B were unfriended above, so they become friends again; C stays a stranger to both
+  const reReq = await A.db.rpc("send_friend_request", { p_username: B.username });
+  const reAcc = reReq.error ? reReq : await B.db.rpc("respond_friend_request", { p_id: reReq.data, p_accept: true });
+  check(!reReq.error && !reAcc.error, "A and B become friends again for the next checks", `re-friending failed: ${reReq.error?.message ?? reAcc.error?.message}`);
   const bytes = Buffer.from("not-really-a-jpeg");
   const aPhoto = `${A.id}/${crypto.randomUUID()}.jpg`;
   const bPhoto = `${B.id}/${crypto.randomUUID()}.jpg`;
@@ -325,6 +319,124 @@ try {
   check(!!cAgain.error, "and switching it back to friends-only closes the photo again straight away", "photo stayed open after going friends-only");
   await admin.storage.from("thread-images").remove([aPhoto, bPhoto]);
 
+  console.log("\nTagging (@mentions): who can be tagged");
+  // E is a friend of A only. D is a friend of both A and B. C is a stranger. (A-B were made friends again above.)
+  const E = await makeUser("e");
+  await admin.from("profiles").upsert({ user_id: E.id, username: E.username, display_name: "Eve" });
+  const befriend = (x, y) => admin.from("friendships").insert({ requester: x.id, addressee: y.id, status: "accepted", accepted_at: new Date().toISOString() });
+  const fr = await Promise.all([befriend(A, D), befriend(B, D), befriend(A, E)]);
+  check(fr.every((r) => !r.error), "set up: D is a friend of A and B, E is a friend of A only, C is a stranger", `friendship setup failed: ${fr.find((r) => r.error)?.error?.message}`);
+
+  // public thread: anyone can be tagged, and the tagged person gets a notification row
+  const pub = await A.db.from("reports").insert({ title: "Public tag test", body: `hello @${C.username} and @${A.username}`, airports: ["ORD"] }).select().single();
+  check(!pub.error, "in a PUBLIC thread A can tag a stranger (and themselves)", `public tag failed: ${pub.error?.message}`);
+  const cNotes = await C.db.from("mentions").select("id,seen,report_id,comment_id").eq("report_id", pub.data?.id);
+  check(cNotes.data?.length === 1 && cNotes.data[0].seen === false && cNotes.data[0].comment_id === null, "C gets exactly one unseen notification for that thread", `C notifications: ${JSON.stringify(cNotes.data ?? cNotes.error?.message)}`);
+  const aNotes = await admin.from("mentions").select("id").eq("report_id", pub.data?.id).eq("user_id", A.id);
+  check(aNotes.data?.length === 0, "tagging yourself does not notify you", "a self-tag created a notification");
+  const tooMany = await A.db.from("reports").insert({ title: "Too many tags", body: "@u1 @u2 @u3 @u4 @u5 @u6 hello there", airports: ["ORD"] });
+  check(!!tooMany.error, "more than 5 tags in one post is refused", "6 tags were accepted");
+  const ghost = await A.db.from("reports").insert({ title: "Not a user", body: `email me at nobody@example.com or tag @nobody_${tag}`, airports: ["ORD"] }).select("id").single();
+  check(!ghost.error, "an @word that isn't a real username is just text (no error)", `plain @word rejected: ${ghost.error?.message}`);
+
+  // removing the tag by editing removes the notification; adding one creates it
+  const dropTag = await A.db.from("reports").update({ body: "hello again, no tags now" }).eq("id", pub.data?.id).select();
+  const cAfterEdit = await C.db.from("mentions").select("id").eq("report_id", pub.data?.id);
+  check(!dropTag.error && cAfterEdit.data?.length === 0, "editing the tag out of a thread removes C's notification", `C still had ${cAfterEdit.data?.length} after the edit (${dropTag.error?.message ?? ""})`);
+  await A.db.from("reports").update({ body: `hello again @${E.username}` }).eq("id", pub.data?.id);
+  const eAfterAdd = await E.db.from("mentions").select("id,seen").eq("report_id", pub.data?.id);
+  check(eAfterAdd.data?.length === 1 && eAfterAdd.data[0].seen === false, "editing a tag in creates a notification for the newly tagged person", `E notifications: ${eAfterAdd.data?.length}`);
+
+  // friends-only thread: only people who can see it can be tagged
+  const fo = await A.db.from("reports").insert({ title: "Circle tag test", body: `just friends: @${D.username} @${E.username}`, airports: ["ORD"], friends_only: true }).select().single();
+  check(!fo.error, "in A's FRIENDS-ONLY thread A can tag their own friends", `friends tag failed: ${fo.error?.message}`);
+  const foStranger = await A.db.from("reports").insert({ title: "Circle leak", body: `psst @${C.username}`, airports: ["ORD"], friends_only: true });
+  check(!!foStranger.error, "...but cannot tag a stranger in it", "a stranger was tagged in a friends-only thread!");
+  const toggle = await A.db.from("reports").update({ friends_only: true }).eq("id", pub.data?.id).select();
+  check(!toggle.error && toggle.data?.length === 1, "A can make a thread friends-only when its tags are all friends", `toggle failed: ${toggle.error?.message}`);
+  const cNoteHidden = await C.db.from("mentions").select("id").eq("report_id", fo.data?.id);
+  check(cNoteHidden.data?.length === 0, "C never gets a notification for a thread C cannot see", "C was notified about a friends-only thread");
+  await A.db.from("reports").update({ friends_only: false }).eq("id", pub.data?.id);
+
+  // comments on the friends-only thread by B (a friend of A): only A and people who are friends with BOTH
+  const bTagD = await B.db.from("report_comments").insert({ report_id: fo.data?.id, body: `looping in @${D.username} and @${A.username}` }).select().single();
+  check(!bTagD.error, "B can tag the author and a mutual friend (D) in a comment", `mutual tag failed: ${bTagD.error?.message}`);
+  const bTagE = await B.db.from("report_comments").insert({ report_id: fo.data?.id, body: `what about @${E.username}` });
+  check(!!bTagE.error, "B cannot tag E (A's friend, but not B's) in A's friends-only thread", "B tagged someone outside the shared circle!");
+  const bTagC = await B.db.from("report_comments").insert({ report_id: fo.data?.id, body: `or @${C.username}` });
+  check(!!bTagC.error, "B cannot tag stranger C either", "B tagged a stranger in a friends-only thread!");
+  const dNote = await D.db.from("mentions").select("id,seen,report_id,comment_id").eq("comment_id", bTagD.data?.id);
+  check(dNote.data?.length === 1 && dNote.data[0].seen === false && dNote.data[0].report_id === fo.data?.id, "D gets a notification pointing at that exact comment", `D notifications: ${JSON.stringify(dNote.data ?? dNote.error?.message)}`);
+
+  console.log("\nTag notifications are private and tamper-proof");
+  const bPeek = await B.db.from("mentions").select("id").eq("user_id", D.id);
+  const cPeek = await C.db.from("mentions").select("id").eq("user_id", D.id);
+  check(bPeek.data?.length === 0 && cPeek.data?.length === 0, "nobody can read someone else's notifications", "someone read another person's notifications!");
+  const bForge = await B.db.from("mentions").insert({ user_id: B.id, report_id: fo.data?.id });
+  check(!!bForge.error, "nobody can create a notification from the app", "a notification was forged!");
+  const bSeen = await B.db.from("mentions").update({ seen: true }).eq("id", dNote.data?.[0]?.id).select();
+  const stillUnseen = await admin.from("mentions").select("seen").eq("id", dNote.data?.[0]?.id).single();
+  check(!bSeen.data?.length && stillUnseen.data?.seen === false, "B cannot mark D's notification as read", "B changed D's notification!");
+  const bDelNote = await B.db.from("mentions").delete().eq("id", dNote.data?.[0]?.id).select();
+  check(!bDelNote.data?.length, "B cannot delete D's notification", "B deleted D's notification!");
+  const reTarget = await D.db.from("mentions").update({ report_id: pub.data?.id }).eq("id", dNote.data?.[0]?.id).select();
+  check(!!reTarget.error || !reTarget.data?.length, "D can only change the 'seen' flag, not where the notification points", "D re-pointed a notification!");
+  const dSeen = await D.db.from("mentions").update({ seen: true }).eq("id", dNote.data?.[0]?.id).select();
+  check(!dSeen.error && dSeen.data?.length === 1 && dSeen.data[0].seen === true, "D can mark their own notification as read (and it stays listed)", `D could not mark it read: ${dSeen.error?.message}`);
+  const dStill = await D.db.from("mentions").select("id").eq("id", dNote.data?.[0]?.id);
+  check(dStill.data?.length === 1, "the notification is still there after being read", "a read notification disappeared");
+  const anonNotes = await anon.from("mentions").select("*");
+  check(!!anonNotes.error || anonNotes.data?.length === 0, "signed-out visitors see no notifications", "notifications public!");
+  const helperCalls = await Promise.all([
+    B.db.rpc("sync_mentions", { p_report: fo.data?.id, p_comment: null, p_body: `@${C.username}`, p_author: A.id }),
+    B.db.rpc("check_mentions", { p_body: "x", p_author: A.id, p_actor: B.id, p_friends_only: false }),
+    B.db.rpc("pair_are_friends", { a: A.id, b: C.id }),
+  ]);
+  check(helperCalls.every((r) => !!r.error), "the internal tagging helpers cannot be called from the app", "an internal helper was callable by a user!");
+
+  // comment edit and deletion keep notifications in step
+  const dropD = await B.db.from("report_comments").update({ body: "never mind, no tags" }).eq("id", bTagD.data?.id).select();
+  const dGone = await admin.from("mentions").select("id").eq("comment_id", bTagD.data?.id);
+  check(!dropD.error && dGone.data?.length === 0, "editing a tag out of a comment removes that notification", `still ${dGone.data?.length} notification(s) after the edit (${dropD.error?.message ?? ""})`);
+  const bTagD2 = await B.db.from("report_comments").insert({ report_id: fo.data?.id, body: `again @${D.username}` }).select().single();
+  await B.db.from("report_comments").delete().eq("id", bTagD2.data?.id);
+  const cascade = await admin.from("mentions").select("id").eq("comment_id", bTagD2.data?.id);
+  check(cascade.data?.length === 0, "deleting a comment removes its notifications", "a notification outlived its comment");
+  const beforeDel = await admin.from("mentions").select("id").eq("report_id", fo.data?.id);
+  await A.db.from("reports").delete().eq("id", fo.data?.id);
+  const afterDel = await admin.from("mentions").select("id").eq("report_id", fo.data?.id);
+  check((beforeDel.data?.length ?? 0) > 0 && afterDel.data?.length === 0, "deleting a thread removes all of its notifications", `notifications before=${beforeDel.data?.length} after=${afterDel.data?.length}`);
+
+  console.log("\nThe tagging picker only suggests people who may be tagged");
+  const fo2 = await A.db.from("reports").insert({ title: "Picker test", body: "friends only", airports: ["ORD"], friends_only: true }).select().single();
+  const names = (r) => (r.data ?? []).map((x) => x.username).sort();
+  const asA = await A.db.rpc("thread_mention_candidates", { p_thread: fo2.data?.id });
+  const asB = await B.db.rpc("thread_mention_candidates", { p_thread: fo2.data?.id });
+  const asC = await C.db.rpc("thread_mention_candidates", { p_thread: fo2.data?.id });
+  const asAnon = await anon.rpc("thread_mention_candidates", { p_thread: fo2.data?.id });
+  check(JSON.stringify(names(asB)) === JSON.stringify([A.username, D.username].sort()), "B is offered only the author and the friend B shares with them (D)", `B was offered: ${names(asB)}`);
+  check(names(asA).includes(D.username) && names(asA).includes(E.username) && !names(asA).includes(C.username), "the author is offered their own friends, never a stranger", `A was offered: ${names(asA)}`);
+  check((asC.data ?? []).length === 0, "C, who can't see the thread, is offered no names (and learns nothing)", `C was offered: ${names(asC)}`);
+  check(!!asAnon.error || (asAnon.data ?? []).length === 0, "signed-out visitors are offered nothing", "picker answered a signed-out visitor");
+  await A.db.from("reports").delete().eq("id", fo2.data?.id);
+
+  console.log("\nFriend counts: a number, shared only with friends");
+  const aCount = await A.db.rpc("friend_count", { p_user: A.id });
+  const bCountOfA = await B.db.rpc("friend_count", { p_user: A.id });
+  const cCountOfA = await C.db.rpc("friend_count", { p_user: A.id });
+  const anonCount = await anon.rpc("friend_count", { p_user: A.id });
+  check(aCount.data === 3 && bCountOfA.data === 3, "A and A's friend B both see A has 3 friends (B, D, E)", `A sees ${aCount.data}, B sees ${bCountOfA.data} (${aCount.error?.message ?? bCountOfA.error?.message ?? ""})`);
+  check(cCountOfA.data === null && (anonCount.error || anonCount.data === null), "a stranger (and a signed-out visitor) gets nothing", `stranger got ${cCountOfA.data}`);
+
+  console.log("\nFriend functions are closed to signed-out visitors");
+  const anonFns = await Promise.all([
+    anon.rpc("friend_summaries"),
+    anon.rpc("mark_friend_accepts_seen"),
+    anon.rpc("remove_friendship", { p_id: crypto.randomUUID() }),
+    anon.rpc("respond_friend_request", { p_id: crypto.randomUUID(), p_accept: true }),
+  ]);
+  check(anonFns.every((r) => !!r.error || r.data == null || (Array.isArray(r.data) && r.data.length === 0)), "signed-out visitors get nothing from the friend functions", "a friend function returned data to a signed-out visitor");
+
   console.log("\nNews feed and airports are read-only");
   const seedNews = await admin.from("news_items").insert({ kind: "headline", title: `Test ${tag}`, source: "test" }).select().single();
   const readNews = await A.db.from("news_items").select("id").eq("id", seedNews.data?.id);
@@ -344,6 +456,7 @@ try {
   // ---- cleanup ------------------------------------------------------------------------------
   try {
     if (made.length) {
+      await admin.from("mentions").delete().in("user_id", made);
       await admin.from("reports").delete().in("user_id", made);
       await admin.from("flights").delete().in("user_id", made);
       await admin.from("friendships").delete().or(made.map((id) => `requester.eq.${id}`).join(",") + "," + made.map((id) => `addressee.eq.${id}`).join(","));

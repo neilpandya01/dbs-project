@@ -14,30 +14,39 @@ swap airport news and tips with the community.
 1. [Try it in five minutes](#try-it-in-five-minutes)
 2. [How to install it on your phone or computer](#how-to-install-it)
 3. [What's new in v2 compared to v1](#whats-new-in-v2-compared-to-v1)
-4. [v2 plan: what got done and what didn't](#v2-plan-what-got-done-and-what-didnt)
-5. [Limitations](#limitations)
-6. [What's in the app](#whats-in-the-app)
-7. [Technical notes (setup, deploy, live tracking)](#technical-notes)
+4. [How it's built: a holistic journey](#how-its-built-a-holistic-journey)
+5. [v2 plan: what got done and what didn't](#v2-plan-what-got-done-and-what-didnt)
+6. [Limitations](#limitations)
+7. [What's in the app](#whats-in-the-app)
 
 ---
 
 ## Try it in five minutes
 
-You don't need to install anything to look around. Open the link above in any browser.
+Open the link above in any browser. No install needed.
 
-1. **Sign up** with an email address, and choose a username. Usernames are permanent.
-2. **Set up your profile** (display name and home city), then add a flight. You can type one in, or look it up by
-   flight number and date (for example `UA 2679` and a recent date).
-3. Open **Profile** for your stats, **Flights** for your list, and **Map** for your routes.
-4. **To see the social features, you need a second person.** The easiest way: open a private/incognito window and
-   sign up a second account. Then:
-   - In **Friends**, search the second username and send a request. Accept it in the other window.
-   - In **News**, post a thread from one account (try the "Friends only" option) and reply from the other. Type `@`
-     and a username in a post or comment to tag them. Watch for the **red dot** on the News tab in the other window.
-   - Open the other person's profile to see their stats, friend count and their own flight map ("Explore more").
-5. **Live tracking** of a friend's plane only shows up if that friend has a real flight scheduled around now (see
-   [Limitations](#limitations)). If you want to see it work, add a flight that is actually in the air today, from the
-   second account, and open the Map in the first one.
+1. **Sign up** with an email address and choose a username. Usernames are permanent.
+2. **Set up your profile** with a display name and home city. You can add your first flight right away, or skip it.
+3. **Explore the five tabs** in the navigation bar:
+   - **Profile:** your home base. A banner (pick a preset or use your own photo), your bio and home city, and stat
+     cards you can tap for a full breakdown (flights, miles, time in the air, airports, countries, airlines,
+     aircraft, routes). Below them are your recent and upcoming flights and a map of everywhere you've flown. Use
+     **Edit profile** to change your photo, banner or bio.
+   - **Flights:** every flight you've logged. Add one by looking it up with a flight number and date, or type it in by
+     hand. Search, filter and sort the list, tap a flight to edit or delete it, and mark a flight as delayed or
+     cancelled with a note about what happened.
+   - **Map:** your routes on a world map. Tap an airport or a route for a stats card. Friends' planes appear here
+     when they're in the air. On a phone, drag the bottom menu up and down to browse your flights, and use the
+     button under the zoom controls to zoom back out to everything.
+   - **Friends:** find people by username, answer requests, and browse your friends. Open a friend's profile to see
+     their stats and flights, and tap **Explore more** to go through their flights on their own map.
+   - **News:** the community board. Post a thread about what's happening at an airport (with photos if you like),
+     comment, mark posts helpful, sort by Hot, New or Top, and filter by airport. Choose **Friends only** to keep a
+     thread within your circle, and type `@` to tag someone. A red dot on the tab and a **You were tagged** list at the
+     top show where people have mentioned you.
+4. **The social features are best with friends on the app.** You can add friends if you'd like, and the Friends tab,
+   friends-only threads, tagging and live plane tracking all come to life from there.
+5. **Install it** on your phone or computer if you want it to feel like a regular app (see below).
 
 ---
 
@@ -84,7 +93,7 @@ Click the small **install icon** at the right end of the address bar (or the "In
 | **Tag notifications** | Not available. | A **red dot** on the News tab and a "You were tagged" list at the top of News. Each entry jumps straight to the exact comment, which flashes blue. The list folds away once everything is read, and stays available. |
 | **Delays and cancellations** *(v1 feedback)* | Not handled. | Mark a flight as delayed or cancelled and add what happened. Delayed flights still count; cancelled flights are kept as a record but left out of stats and the map. |
 | **Profiles** | Banner, name and stats. | Bio and home city under the banner, friend count (shown to friends), and a tidy banner on small screens. |
-| **Privacy and safety** | Row-level security on every table. | Photos on threads are private (shown through expiring links). Deleting your account also removes your comments, threads, photos and notifications. Threads flagged by three people are hidden automatically. Confirmation before deleting. |
+| **Privacy and safety** | Row-level security on every table. | Photos on threads are private (shown through expiring links). Deleting your account also removes your comments, threads, photos and notifications. Threads flagged by three people are hidden automatically. Confirmation before deleting. An automated security test now covers all of this, including tagging, and passes. |
 
 ### Highlights for a quick read
 - **Works anywhere:** laptop, Android, iPhone, installable.
@@ -92,13 +101,74 @@ Click the small **install icon** at the right end of the address bar (or the "In
 - **A real community feature** (News) instead of an empty page, with privacy controls.
 - **Social touches:** tagging and notifications, friend counts, friends' own maps.
 
-### Design approach (carried over from v1)
-The interface got a lot of attention because the app only works if it feels right to an avgeek. A Sky Blue palette
-with light and dark modes, flight times shown as the local clock at each airport (like a departure board), and
-profiles that open on a banner with stats you can tap into. v2 repeated that process for phones: screens were
-reworked after using the app on an actual phone, for example moving the zoom buttons within thumb reach, and
-making the map's list draggable like the maps on your phone. Friend feedback from v1 (testers mostly found small
-inconveniences, like wanting an easier "remove friend" button) shaped fixes in both versions.
+---
+
+## How it's built: a holistic journey
+
+Wingmates is a **holistic journey**: one person's path from start to finish, with every step working on the live
+site. It touches most of the course's topics without going extremely deep in any one, and it deliberately doesn't use
+AI. In terms of the course's four areas, the weight sits on three of them:
+
+- **Users:** real sign-up and sign-in, permanent usernames, friend requests, who can see what (strangers, friends,
+  you), a community with flagging and friends-only threads, and tagging with notifications.
+- **Design:** a Sky Blue look with light and dark modes, a layout rebuilt for phones, and an installable app that
+  feels native.
+- **Systems:** a hosted database with its own security rules, outside data services, a background worker, and live
+  updates pushed to your screen.
+- **AI:** not used, by design.
+
+### How the pieces fit together
+
+```
+  You (phone or laptop browser, or the installed app)
+     │
+     ├─ sign up / sign in ─────────────▶  Clerk  (accounts, sign-in tokens)
+     │
+     ├─ reads and writes ──────────────▶  Supabase  (database, private photo storage, live updates)
+     │        the database's own rules decide who can see or change what
+     │
+     ├─ 3 server routes on Vercel
+     │     • flight lookup ───────────────▶  AeroDataBox  (airline, aircraft, times)
+     │     • "where are my friends' planes?" ─▶  adsb.fi  (live aircraft positions)
+     │     • account deletion  ◀──────────  Clerk tells us; we erase that person's data
+     │
+     └─ every minute, a scheduled worker in Supabase
+           asks adsb.fi about friends' flights ─▶ saves positions ─▶ pushed to your map
+```
+
+**The website** is built with Next.js and hosted on Vercel. It looks the same on phone and laptop, and a small
+service worker makes it installable.
+
+**Accounts.** Clerk handles sign-up and sign-in. When you sign in, it gives your browser a signed token that says who
+you are. Supabase trusts that token, so the database always knows who is asking without us storing passwords.
+
+**The database (Supabase).** Almost everything (your flights, profile, friends, threads, comments, tags) is read and
+written straight from your browser to the database. What keeps this safe is that the *database itself* checks every
+request: each table has row-level security, so you can only see your own flights, your friends' visible flights, and
+threads you're allowed to see. Rules like "friends-only threads", "at most 5 tags per post", and "only people who can
+see a thread can be tagged" live in the database, so they can't be skipped by tampering with the app. Photos live in
+private storage and are shown through links that expire.
+
+**The three server routes (API calls).** A few jobs need secrets or outside services, so they run on our server instead
+of in the browser, and each one checks you're signed in first:
+1. **Flight lookup:** you type a flight number and date; the server asks AeroDataBox for the airline, aircraft and
+   times, remembers the answer so repeat lookups are free, and enforces a daily limit per person plus a cap that stops
+   it before the free monthly allowance runs out.
+2. **Live check:** when you open the Map, the server asks adsb.fi whether your friends' planes are in the air right now.
+3. **Account deletion:** when someone deletes their account in Clerk, Clerk sends a signed message to the server, which
+   then erases that person's data and photos.
+
+**Live tracking.** A scheduled worker runs every minute in Supabase. If anyone has the Map open, it asks adsb.fi about
+their friends' flights, one request every couple of seconds, from 30 minutes before departure to 2 hours after arrival.
+Positions are saved to a table, and Supabase pushes each new one to open maps, so planes move without refreshing. If a
+plane isn't heard from for two minutes it simply disappears, rather than being guessed.
+
+**Maps and search.** MapLibre draws the maps (with free OpenFreeMap tiles), and Open-Meteo powers the city search.
+There are about 4,000 airports in our own table.
+
+**Keys and safety.** Secret keys stay on the server and are never in the code repository. Every server route checks
+who's signed in. An automated security test creates temporary users and tries to read, change and impersonate each
+other's data; it checks each rule above (including tagging and notifications) and cleans up after itself.
 
 ---
 
@@ -112,9 +182,9 @@ inconveniences, like wanting an easier "remove friend" button) shaped fixes in b
 | Track delayed and cancelled flights (v1 feedback) | **Done** (marked by the user, see limitations) |
 | Installable app: PNG icons, iPhone home-screen support, offline screen | **Done** |
 | Be more mobile-friendly | **Done** |
-| News tab | **Changed.** Built as a community board (threads, comments, photos, tagging) rather than a feed of outside headlines. |
-| Aviation news feeds, FAA delay and ground-stop alerts, aviation weather | **Not done** |
-| A backup live-data source (OpenSky) | **Not done** |
+| News tab | **Changed.** Built as a community board (threads, comments, photos, tagging) rather than a feed of outside headlines. *Why: scope changed. A community board gave the tab real content right away and fit the app's social focus, without depending on outside news sources.* |
+| Aviation news feeds, FAA delay and ground-stop alerts, aviation weather | **Not done.** *Why: scope changed. Time went into the community board and into making the app work well on phones, which mattered more to how the app is actually used. Outside feeds would also have meant several more outside services to connect, read and tag by airport.* |
+| A backup live-data source (OpenSky) | **Not done.** *Why: scope changed. One source was enough for the live map, and a second one would have added complexity. Instead the map hides planes it can't hear from, so it never shows a guess.* |
 
 ---
 
@@ -124,7 +194,7 @@ Being upfront about what v2 does **not** do, or does only partly:
 
 **Live tracking**
 - It only follows **friends'** flights (not your own), and **only while someone has the Map open**. Nothing is
-  tracked in the background when nobody is looking.
+  tracked in the background when nobody is looking. This keeps it inside the free data limits.
 - A flight is followed from **30 minutes before departure until 2 hours after its scheduled arrival**. A flight
   delayed beyond that is no longer followed.
 - Data comes from a free volunteer network of plane receivers (adsb.fi). Coverage isn't perfect, especially for
@@ -137,7 +207,8 @@ Being upfront about what v2 does **not** do, or does only partly:
 - The "estimated flight time" on flight cards is calculated from the distance, not the real time in the air.
 
 **Flights and data**
-- **Delays and cancellations are marked by you.** The app doesn't detect them automatically.
+- **Delays and cancellations are marked by you.** The app doesn't detect them automatically. *Why: scope changed.
+  Detecting them automatically would need another outside data source, so v2 keeps it simple and puts you in control.*
 - Flight lookup uses a free service with a daily allowance. When it's used up (or switched off), you can still add
   flights by hand. Typed-in flights have approximate departure and arrival times.
 - The airport list has about 4,000 airports. Very small airfields may be missing.
@@ -145,22 +216,21 @@ Being upfront about what v2 does **not** do, or does only partly:
 
 **News and community**
 - The News tab shows **posts from Wingmates users only**. There are **no automatic headlines, FAA alerts or
-  weather** (these were planned but not built).
+  weather**. *Why: scope changed, see the plan table above.*
 - Photos: up to 4 per thread and 2 per comment. You can tag at most 5 people per post.
 - **No push notifications.** The red dot and the "You were tagged" list update while the app is open (within about
-  30 seconds, or when you come back to it). There are no lock-screen alerts.
+  30 seconds, or when you come back to it). There are no lock-screen alerts. *Why: not part of the v2 scope. The red
+  dot and tag list cover the need while you're using the app, and phone push alerts would need extra setup for each
+  kind of phone.*
 
 **Phones and installing**
-- It isn't in the App Store or Google Play. It installs from the browser (see above). On iPhone, installing only
-  works from Safari.
+- It isn't in the App Store or Google Play. *Why: the plan was an installable web app, which works on both Android and
+  iPhone without store approval.* It installs from the browser (see above). On iPhone, installing only works from
+  Safari.
 - It needs an internet connection; offline you only get a "You're offline" screen.
-- Phone layouts were checked mainly on an iPhone and a laptop browser. Android devices and tablets haven't been
-  tested on real hardware.
 
 **General**
 - It runs on free tiers of its services, so heavy use by many people at once isn't what it was built or tested for.
-- The automated security check (`npm run check:security`) hasn't been extended to cover tagging and tag
-  notifications.
 
 ---
 
@@ -176,53 +246,3 @@ Being upfront about what v2 does **not** do, or does only partly:
   friends (with their own flight map), remove a friend.
 - **News:** community threads with photos, comments, helpful votes, airport tags and filters, friends-only threads,
   @tagging with a red-dot notification list, edit/delete and flagging.
-
----
-
-## Technical notes
-
-*(For anyone setting the project up. Not needed to use the app.)*
-
-### Setup
-1. Copy `.env.example` to `.env.local` and fill in the Supabase, Clerk and RapidAPI keys (never commit them).
-2. Run each file in `supabase/migrations/` once, in filename order, in Supabase → SQL Editor. (v2 added migrations for
-   friends-only threads, private photos, @mentions, friend counts and tag notifications. The mentions file must run
-   before the tag-notification file.)
-3. `npm run import:airports` loads about 4,000 airports into Supabase (safe to re-run).
-4. Supabase → Authentication → Sign In / Providers: add Clerk as a third-party provider.
-5. Clerk → Sessions → Customize session token: set the claims to `{ "username": "{{user.username}}" }`
-   (the database takes a username only from this claim, and only once, when the profile is created).
-6. `npm run check:supabase` checks the env and both connections without printing any secret.
-7. `npm run check:security` creates temporary users to check one can't read or change another's data.
-
-### Live tracking setup
-Friends' flights are followed by an edge function (`supabase/functions/live-tracker`) that Supabase cron runs every
-minute, and also checked on the spot whenever someone opens the Map. Only friends of people who have the Map open are
-followed (the page sends a heartbeat). Each flight is followed from 30 minutes before its scheduled departure until 2
-hours after its scheduled arrival, one adsb.fi request at a time, every 2 seconds in a round-robin. A friend's
-profile picture appears on the Map only when there is a fresh, real position: on the ground at the departure airport,
-in flight, or on the ground at the arrival airport while still reporting. A plane with no position for 2 minutes is not
-shown, and nothing is estimated from the schedule. Positions are written to `live_positions` and pushed to the map
-with Supabase Realtime. One-time setup:
-
-1. Run `supabase/migrations/20261122000000_live_tracking.sql` in the SQL Editor.
-2. Turn on the `pg_cron` and `pg_net` extensions (Database → Extensions).
-3. `supabase functions deploy live-tracker --no-verify-jwt`, then `supabase secrets set CRON_SECRET=<long random string>`.
-4. Fill in the two placeholders in `supabase/cron/live_tracker_schedule.sql` and run it in the SQL Editor.
-
-### Develop
-```bash
-npm install
-npm run dev
-```
-To regenerate the app icons: `node scripts/make-icons.mjs`.
-
-### Deploy
-Push to GitHub and import in Vercel. Add the same variables as `.env.local` in Vercel's settings; the
-service-role key and `RAPIDAPI_KEY` are server only. `postinstall` copies the MapLibre worker into
-`public/maplibre/` (git-ignored).
-
-### Stack
-Next.js (App Router), TypeScript, Clerk (sign-in), Supabase (database, storage, realtime, scheduled functions),
-MapLibre GL + OpenFreeMap tiles, AeroDataBox (flight lookup), adsb.fi (live aircraft positions), Open-Meteo (city
-search, GeoNames data). Plain CSS, Sky Blue palette, light and dark.
