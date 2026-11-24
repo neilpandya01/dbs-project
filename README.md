@@ -129,14 +129,15 @@ The weight sits on three areas:
   creates temporary users and tries to read, change and impersonate each other's data, then cleans up after itself.
 
 
-**Security review.** We reviewed the whole project: the API routes, sign-in handling, every database table's access rules,
-the background worker, secrets, and dependencies. No secrets were ever committed, dependencies had no known
-vulnerabilities, and no one's data was exposed to people who shouldn't see it. We found and fixed three weaknesses:
-post authors could be spoofed by renaming yourself in the sign-in service (names now come from the locked profile),
-the live-position refresh had no per-user limit (now one call per 15 seconds), and the daily flight-lookup limit could be
-bypassed with many simultaneous requests (the allowance is now claimed atomically). Still open, lower priority: a
-Content-Security-Policy, validating profile photo URLs, limiting username search, and turning off username changes in
-the sign-in service's settings. The automated security test covers the new limits.
+**Security review.** I ran a full security review of the project myself: the API routes, sign-in handling, every database
+table's access rules, the background worker, secrets, and dependencies. I confirmed that no secrets were ever committed,
+that my dependencies have no known vulnerabilities, and that no one's data is exposed to people who shouldn't see it. The
+review turned up three weaknesses, and I fixed all three. Post authors could be spoofed by renaming yourself in the
+sign-in service, so I changed it to take names from the locked profile. The live-position refresh had no per-user limit,
+so I capped it at one call per 15 seconds. The daily flight-lookup limit could be bypassed with many simultaneous
+requests, so I made the allowance get claimed atomically. I extended my automated security test to cover the new limits.
+Still open, and lower priority, are a Content-Security-Policy, validating profile photo URLs, limiting username search,
+and turning off username changes in the sign-in service's settings.
 
 ---
 
