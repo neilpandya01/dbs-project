@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Avatar } from "@/components/Avatar";
+import { UserLink } from "@/components/UserLink";
 import { AIRPORTS } from "@/lib/core";
 import { useSupabase } from "@/lib/supabase";
 import {
@@ -105,10 +106,10 @@ export function ThreadView({ id }: { id: string }) {
     <>
       <Link href="/news" className="back-link">‹ News</Link>
       <article className="post thread-full">
-        <Avatar name={thread.author_name || thread.author_username} color={colorFor(thread.author_username)} size={42} />
+        <UserLink username={thread.author_username}><Avatar name={thread.author_name || thread.author_username} color={colorFor(thread.author_username)} size={42} /></UserLink>
         <div className="post-main">
           <div className="post-head">
-            <b>@{thread.author_username}</b>
+            <UserLink username={thread.author_username}><b>@{thread.author_username}</b></UserLink>
             <span className="muted">{ago(thread.created_at, now)}</span>
             <span className="spacer" />
             {thread.airports.map((c) => <span key={c} className="tag mono" title={AIRPORTS[c]?.name}>{c}</span>)}
@@ -141,10 +142,10 @@ export function ThreadView({ id }: { id: string }) {
         {comments.length === 0 && <p className="muted empty-line">No comments yet. Start the conversation.</p>}
         {comments.map((c) => (
           <div key={c.id} className="comment">
-            <Avatar name={c.author_name || c.author_username} color={colorFor(c.author_username)} size={32} />
+            <UserLink username={c.author_username}><Avatar name={c.author_name || c.author_username} color={colorFor(c.author_username)} size={32} /></UserLink>
             <div className="comment-main">
               <div className="post-head">
-                <b>@{c.author_username}</b>
+                <UserLink username={c.author_username}><b>@{c.author_username}</b></UserLink>
                 <span className="muted">{ago(c.created_at, now)}</span>
                 <span className="spacer" />
                 {c.user_id === me.id && <button className="pill ghost" onClick={() => delComment(c.id)}>Delete</button>}

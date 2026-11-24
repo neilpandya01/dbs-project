@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AirportPicker } from "@/components/AirportPicker";
 import { AirportTags } from "@/components/AirportTags";
 import { Avatar } from "@/components/Avatar";
+import { UserLink } from "@/components/UserLink";
 import { Sheet } from "@/components/Sheet";
 import { AIRPORTS, airportsNear } from "@/lib/core";
 import { useFlights } from "@/lib/flightsStore";
@@ -38,10 +39,10 @@ function ThreadCard({ t, now, mine, voted, flagged, onVote, onFlag, onDelete, on
 }) {
   return (
     <article className="post">
-      <Avatar name={t.author_name || t.author_username} color={colorFor(t.author_username)} size={38} />
+      <UserLink username={t.author_username}><Avatar name={t.author_name || t.author_username} color={colorFor(t.author_username)} size={38} /></UserLink>
       <div className="post-main">
         <div className="post-head">
-          <b>@{t.author_username}</b>
+          <UserLink username={t.author_username}><b>@{t.author_username}</b></UserLink>
           <span className="muted">{ago(t.created_at, now)}</span>
           <span className="spacer" />
           <Tags tags={t.airports} onPick={onPickAirport} />
