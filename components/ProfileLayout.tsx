@@ -48,6 +48,9 @@ type Props = {
  * The profile page, shared by your own profile and your friends' profiles.
  * Everything is the same; only the edit controls (the `own` prop) are yours alone.
  */
+/** "12", or "99+" once someone has more than 99. */
+const countLabel = (n: number) => (n > 99 ? "99+" : String(n));
+
 export function ProfileLayout({ who, subtitle, friendCount, friendAvatars, flights, now, own, heroActions, limited }: Props) {
   const [details, setDetails] = useState(false);
   const [allFlights, setAllFlights] = useState(false);
@@ -96,15 +99,15 @@ export function ProfileLayout({ who, subtitle, friendCount, friendAvatars, fligh
         {heroActions && <div className="hero-actions">{heroActions}</div>}
         {!own && friendCount != null && !limited && (
           <span className="friends-pill static" role="status">
-            <span className="friends-text"><b>{friendCount}</b> {friendCount === 1 ? "friend" : "friends"}</span>
+            <span className="friends-text"><b>{countLabel(friendCount)}</b> {friendCount === 1 ? "friend" : "friends"}</span>
           </span>
         )}
         {own && (
-          <Link href="/friends" className="friends-pill" aria-label={`${friendCount ?? 0} ${friendCount === 1 ? "friend" : "friends"}. View friends`}>
+          <Link href="/friends" className="friends-pill" aria-label={`${countLabel(friendCount ?? 0)} ${friendCount === 1 ? "friend" : "friends"}. View friends`}>
             <span className="friends-stack" aria-hidden="true">
               {(friendAvatars ?? []).slice(0, 3).map((f) => <Avatar key={f.username} name={f.name} color={f.color} src={f.photo} size={22} />)}
             </span>
-            <span className="friends-text"><b>{friendCount ?? 0}</b> {friendCount === 1 ? "friend" : "friends"}</span>
+            <span className="friends-text"><b>{countLabel(friendCount ?? 0)}</b> {friendCount === 1 ? "friend" : "friends"}</span>
             <span className="friends-chev" aria-hidden="true">›</span>
           </Link>
         )}

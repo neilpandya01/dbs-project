@@ -846,3 +846,13 @@ img { max-width: 100%; }
   .hero-edit { padding: 5px 11px; font-size: 13px; min-height: 34px; }
   .hero > .friends-pill { position: absolute; top: 10px; left: 10px; align-self: auto; padding: 3px 11px 3px 4px; font-size: 13px; min-height: 34px; }
 }
+
+/* friend-count pill: even padding, content centred in the white bubble */
+.friends-pill { align-items: center; justify-content: center; gap: 8px; padding: 6px 14px; min-height: 36px; line-height: 1; white-space: nowrap; }
+.friends-pill:has(.friends-stack:not(:empty)) { padding-left: 8px; }
+.friends-stack { align-items: center; padding-left: 8px; }
+.friends-text { display: inline-flex; align-items: baseline; gap: 4px; line-height: 1; }
+.friends-chev { display: inline-flex; align-items: center; margin-top: -1px; }
+.friends-pill.static { padding: 6px 14px; }
+@media (max-width: 480px) { .friends-pill, .friends-pill:has(.friends-stack:not(:empty)), .friends-pill.static { padding: 6px 14px; } }
+@media (max-width: 600px) { .hero > .friends-pill { min-height: 34px; } }
