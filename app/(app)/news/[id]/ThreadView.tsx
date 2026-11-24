@@ -84,8 +84,9 @@ export function ThreadView({ id }: { id: string }) {
     }
   };
   const flag = async () => {
-    setFlagged(true);
-    if (await flagThread(supabase, thread.id)) setFlagged(false);
+    const on = flagged;
+    setFlagged(!on);
+    if (await flagThread(supabase, thread.id, on)) setFlagged(on);
   };
   const del = async () => {
     if (!(await deleteThread(supabase, thread))) router.push("/news");
@@ -153,7 +154,7 @@ export function ThreadView({ id }: { id: string }) {
                 <button className="pill ghost" onClick={() => setConfirmDel(true)} aria-pressed={confirmDel}>Delete</button>
               </>
             ) : (
-              <button className="pill ghost" aria-pressed={flagged} onClick={flag} disabled={flagged}>{flagged ? "Flagged" : "Flag"}</button>
+              <button className="pill ghost" aria-pressed={flagged} onClick={flag} title={flagged ? "Take your flag back" : "Report this thread"}>{flagged ? "Flagged · Undo" : "Flag"}</button>
             )}
           </div>
           {confirmDel && (

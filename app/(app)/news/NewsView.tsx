@@ -71,7 +71,7 @@ function ThreadCard({ t, now, mine, friend, voted, flagged, onVote, onFlag, onEd
               <button className="pill ghost" onClick={() => setConfirming(true)} aria-pressed={confirming}>Delete</button>
             </>
           ) : (
-            <button className="pill ghost" aria-pressed={flagged} onClick={onFlag} disabled={flagged}>{flagged ? "Flagged" : "Flag"}</button>
+            <button className="pill ghost" aria-pressed={flagged} onClick={onFlag} title={flagged ? "Take your flag back" : "Report this thread"}>{flagged ? "Flagged · Undo" : "Flag"}</button>
           )}
         </div>
         {confirming && (
@@ -186,8 +186,9 @@ export function NewsView() {
     }
   };
   const flag = async (id: string) => {
-    setFlagged((s) => new Set(s).add(id));
-    if (await flagThread(supabase, id)) setFlagged((s) => { const n = new Set(s); n.delete(id); return n; });
+    const on = flagged.has(id);
+    setFlagged((s) => { const n = new Set(s); if (on) n.delete(id); else n.add(id); return n; });
+    if (await flagThread(supabase, id, on)) setFlagged((s) => { const n = new Set(s); if (on) n.add(id); else n.delete(id); return n; });
   };
   const del = async (t: Thread) => {
     if (!(await deleteThread(supabase, t))) setThreads((rs) => rs.filter((r) => r.id !== t.id));

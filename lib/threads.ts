@@ -178,8 +178,9 @@ export async function voteThread(db: SupabaseClient, id: string, on: boolean) {
   const { error } = on ? await db.from("report_votes").delete().eq("report_id", id) : await db.from("report_votes").insert({ report_id: id });
   return error?.message ?? null;
 }
-export async function flagThread(db: SupabaseClient, id: string) {
-  const { error } = await db.rpc("flag_report", { p_id: id });
+/** Flag a thread, or (on = true: it's already flagged) take your flag back. */
+export async function flagThread(db: SupabaseClient, id: string, on = false) {
+  const { error } = await db.rpc(on ? "unflag_report" : "flag_report", { p_id: id });
   return error?.message ?? null;
 }
 export async function deleteThread(db: SupabaseClient, t: Pick<Thread, "id" | "images">) {
