@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { imageSrc, shrinkImage } from "@/lib/threads";
+import { isImagePath, shrinkImage } from "@/lib/threads";
+import { useImageUrls } from "@/lib/useImageUrls";
 
 /**
  * Attach photos: shows the photos already attached (each removable), the new ones picked (each removable), and a button
@@ -15,6 +16,7 @@ export function ImageAttach({ kept, onKeptChange, files, onFilesChange, max, can
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { urls: keptUrls, retry } = useImageUrls(kept.filter(isImagePath));
   const previews = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files]);
   useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
 
@@ -42,11 +44,10 @@ export function ImageAttach({ kept, onKeptChange, files, onFilesChange, max, can
     <div className="attach">
       <div className="attach-row">
         {kept.map((p) => {
-          const src = imageSrc(p);
-          return src ? (
+          return isImagePath(p) ? (
             <div key={p} className="attach-thumb">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={src} alt="" />
+              {keptUrls[p] && <img src={keptUrls[p]} alt="" onError={() => retry(p)} />}
               <button type="button" onClick={() => onKeptChange(kept.filter((x) => x !== p))} aria-label="Remove photo">✕</button>
             </div>
           ) : null;

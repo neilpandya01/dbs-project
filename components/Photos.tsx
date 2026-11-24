@@ -2,24 +2,32 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { imageSrc } from "@/lib/threads";
+import { isImagePath } from "@/lib/threads";
+import { useImageUrls } from "@/lib/useImageUrls";
 
 /** Photos attached to a thread or comment. Click one to view it large in the app (no new tab), with arrows for the rest. */
 export function Photos({ images, size = "small" }: { images: string[]; size?: "small" | "large" }) {
-  const list = images.map((p) => ({ p, src: imageSrc(p) })).filter((x): x is { p: string; src: string } => !!x.src);
+  const list = images.filter(isImagePath);
+  const { urls, retry } = useImageUrls(list);
   const [open, setOpen] = useState<number | null>(null);
   if (list.length === 0) return null;
+  // the viewer only pages through photos whose link has arrived
+  const ready = list.filter((p) => urls[p]);
   return (
     <>
       <div className={`photos ${size}`}>
-        {list.map(({ p, src }, i) => (
-          <button key={p} type="button" className="photo-btn" onClick={() => setOpen(i)} aria-label={`View photo ${i + 1} of ${list.length}`}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={src} alt="" loading="lazy" />
-          </button>
-        ))}
+        {list.map((p) =>
+          urls[p] ? (
+            <button key={p} type="button" className="photo-btn" onClick={() => setOpen(ready.indexOf(p))} aria-label={`View photo ${ready.indexOf(p) + 1} of ${ready.length}`}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={urls[p]} alt="" loading="lazy" onError={() => retry(p)} />
+            </button>
+          ) : (
+            <div key={p} className="photo-btn photo-pending" aria-hidden="true" />
+          )
+        )}
       </div>
-      {open !== null && <Lightbox srcs={list.map((x) => x.src)} index={open} onIndex={setOpen} onClose={() => setOpen(null)} />}
+      {open !== null && ready[open] && <Lightbox srcs={ready.map((p) => urls[p])} index={open} onIndex={setOpen} onClose={() => setOpen(null)} />}
     </>
   );
 }

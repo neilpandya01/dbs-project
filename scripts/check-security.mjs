@@ -285,6 +285,46 @@ try {
   const anonRep = await anon.from("reports").select("*");
   check(!!anonRep.error || anonRep.data?.length === 0, "signed-out visitors cannot read reports", "reports public!");
 
+  console.log("\nFriends-only threads, comments and photos stay inside the friends circle");
+  // A and B are friends; C is a stranger to A (and to B)
+  const bytes = Buffer.from("not-really-a-jpeg");
+  const aPhoto = `${A.id}/${crypto.randomUUID()}.jpg`;
+  const bPhoto = `${B.id}/${crypto.randomUUID()}.jpg`;
+  const upA = await A.db.storage.from("thread-images").upload(aPhoto, bytes, { contentType: "image/jpeg" });
+  const upB = await B.db.storage.from("thread-images").upload(bPhoto, bytes, { contentType: "image/jpeg" });
+  check(!upA.error && !upB.error, "people can upload photos into their own folder", `upload failed: ${upA.error?.message ?? upB.error?.message}`);
+  const priv = await A.db.from("reports").insert({ title: "Friends only", body: "only my friends should see this", airports: ["ORD"], images: [aPhoto], friends_only: true }).select().single();
+  check(!priv.error && priv.data?.friends_only === true, "A posts a friends-only thread with a photo", `post failed: ${priv.error?.message}`);
+  const pid = priv.data?.id;
+  const bSees = await B.db.from("reports").select("id").eq("id", pid);
+  const cSees = await C.db.from("reports").select("id").eq("id", pid);
+  check(bSees.data?.length === 1 && cSees.data?.length === 0, "A's friend B can read it; stranger C gets nothing", `B saw ${bSees.data?.length}, C saw ${cSees.data?.length}`);
+  const cList = await C.db.from("reports").select("id").eq("friends_only", true);
+  check(!cList.data?.some((r) => r.id === pid), "it never shows up in C's feed", "friends-only thread in C's feed!");
+  const cVote = await C.db.from("report_votes").insert({ report_id: pid });
+  const cFlag = await C.db.rpc("flag_report", { p_id: pid });
+  const cComment = await C.db.from("report_comments").insert({ report_id: pid, body: "let me in" });
+  check(!!cVote.error && !!cFlag.error && !!cComment.error, "C cannot vote on, flag or comment on it", `vote=${!cVote.error} flag=${!cFlag.error} comment=${!cComment.error}`);
+  const bComment = await B.db.from("report_comments").insert({ report_id: pid, body: "friend reply", images: [bPhoto] }).select().single();
+  check(!bComment.error, "B (a friend) can comment, with a photo", `comment failed: ${bComment.error?.message}`);
+  const cComments = await C.db.from("report_comments").select("id").eq("report_id", pid);
+  check(cComments.data?.length === 0, "C cannot read the comments either", "comments on a friends-only thread leaked!");
+  const sign = (u, path) => u.db.storage.from("thread-images").createSignedUrl(path, 60);
+  const [bThread, aThread, cThread, anonThread, aComm, cComm] = await Promise.all([sign(B, aPhoto), sign(A, aPhoto), sign(C, aPhoto), sign(anon && { db: anon }, aPhoto), sign(A, bPhoto), sign(C, bPhoto)]);
+  check(!bThread.error && !aThread.error, "A and B can open the thread's photo", `friend could not open it: ${bThread.error?.message ?? aThread.error?.message}`);
+  check(!!cThread.error && !!anonThread.error, "C and signed-out visitors cannot open the thread's photo", "friends-only photo was readable by a stranger!");
+  check(!aComm.error && !!cComm.error, "the photo on a comment is readable by the thread's circle, not by C", `comment photo: author-side=${!aComm.error} stranger-side=${!!cComm.error}`);
+  const oldLink = await fetch(`${SB_URL}/storage/v1/object/public/thread-images/${aPhoto}`);
+  check(oldLink.status !== 200, "the old public link no longer works (bucket is private)", "photo still reachable through a public link!");
+  await A.db.from("reports").update({ friends_only: false }).eq("id", pid);
+  const cNow = await C.db.from("reports").select("id").eq("id", pid);
+  const cPhotoNow = await sign(C, aPhoto);
+  check(cNow.data?.length === 1 && !cPhotoNow.error, "if A makes it public again, C can see it and its photo", "switching back to public did not open it up");
+  await A.db.from("reports").update({ friends_only: true }).eq("id", pid);
+  const cAgain = await sign(C, aPhoto);
+  check(!!cAgain.error, "and switching it back to friends-only closes the photo again straight away", "photo stayed open after going friends-only");
+  await admin.storage.from("thread-images").remove([aPhoto, bPhoto]);
+
   console.log("\nNews feed and airports are read-only");
   const seedNews = await admin.from("news_items").insert({ kind: "headline", title: `Test ${tag}`, source: "test" }).select().single();
   const readNews = await A.db.from("news_items").select("id").eq("id", seedNews.data?.id);

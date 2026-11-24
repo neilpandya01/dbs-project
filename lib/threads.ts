@@ -44,7 +44,7 @@ export const BODY_MAX = 2000;
 export const COMMENT_MAX = 1000;
 export const MAX_THREAD_IMAGES = 4;
 export const MAX_COMMENT_IMAGES = 2;
-const BUCKET = "thread-images";
+export const BUCKET = "thread-images";
 
 export function ago(iso: string, now: number) {
   const mins = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60000));
@@ -77,10 +77,8 @@ export function hotScore(t: Thread, now: number) {
 // ---- photos ---------------------------------------------------------------------------------------------
 const IMAGE_PATH = /^[A-Za-z0-9_-]+\/[0-9a-f-]{36}\.jpg$/;
 
-/** The public address of an uploaded photo, or null if the stored path isn't one of ours. */
-export function imageSrc(path: string) {
-  return IMAGE_PATH.test(path) ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}` : null;
-}
+/** Is this stored path one of our uploaded photos? (Photos are private: to show one, get a signed link with useImageUrls.) */
+export const isImagePath = (path: string) => IMAGE_PATH.test(path);
 
 /** Shrink a picked photo to at most 1600 px on its longest side and save it as a JPEG, so uploads stay small. */
 export async function shrinkImage(file: File, maxSide = 1600): Promise<File> {
