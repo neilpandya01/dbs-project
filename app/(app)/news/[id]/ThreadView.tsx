@@ -139,6 +139,7 @@ export function ThreadView({ id }: { id: string }) {
             <UserLink username={thread.author_username}><b>@{thread.author_username}</b></UserLink>
             {mine && <YouTag />}
             {friend && <span className="badge accent">Friend</span>}
+            {thread.friends_only && <span className="badge" title="Only the author and their friends can see this thread">🔒 Friends only</span>}
             <span className="muted">{ago(thread.created_at, now)}{thread.edited_at ? " · edited" : ""}</span>
             <span className="spacer" />
             {thread.airports.map((c) => <span key={c} className="tag mono" title={AIRPORTS[c]?.name}>{c}</span>)}

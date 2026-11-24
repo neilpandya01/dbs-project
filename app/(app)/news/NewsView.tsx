@@ -51,6 +51,7 @@ function ThreadCard({ t, now, mine, friend, voted, flagged, onVote, onFlag, onEd
           <UserLink username={t.author_username}><b>@{t.author_username}</b></UserLink>
           {mine && <YouTag />}
           {friend && <span className="badge accent">Friend</span>}
+          {t.friends_only && <span className="badge" title="Only the author and their friends can see this thread">🔒 Friends only</span>}
           <span className="muted">{ago(t.created_at, now)}{t.edited_at ? " · edited" : ""}</span>
           <span className="spacer" />
           <Tags tags={t.airports} onPick={onPickAirport} />

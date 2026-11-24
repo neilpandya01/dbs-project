@@ -13,6 +13,7 @@ export function ThreadForm({ thread, onClose, onSave }: { thread: Thread | null;
   const [body, setBody] = useState(thread?.body ?? "");
   const [kept, setKept] = useState<string[]>(thread?.images ?? []);
   const [files, setFiles] = useState<File[]>([]);
+  const [friendsOnly, setFriendsOnly] = useState(thread?.friends_only ?? false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -22,7 +23,7 @@ export function ThreadForm({ thread, onClose, onSave }: { thread: Thread | null;
     if (body.trim().length < BODY_MIN) return setError(`Add a description of what’s happening (at least ${BODY_MIN} characters).`);
     setBusy(true);
     setError(null);
-    const err = await onSave({ title: title.trim(), body: body.trim(), airports, kept, files });
+    const err = await onSave({ title: title.trim(), body: body.trim(), airports, kept, files, friendsOnly });
     if (err) { setError(err); setBusy(false); }
   };
 
@@ -39,6 +40,10 @@ export function ThreadForm({ thread, onClose, onSave }: { thread: Thread | null;
         </label>
         <ImageAttach kept={kept} onKeptChange={setKept} files={files} onFilesChange={setFiles} max={MAX_THREAD_IMAGES} />
         <AirportTags value={airports} onChange={setAirports} />
+        <label className="check-row">
+          <input type="checkbox" checked={friendsOnly} onChange={(e) => setFriendsOnly(e.target.checked)} />
+          <span>Friends only <small className="muted">· only you and your friends can see this thread</small></span>
+        </label>
         {error && <p className="msg err" role="alert">{error}</p>}
         <div className="form-actions">
           <button type="submit" className="btn primary" disabled={busy}>{busy ? "Saving…" : thread ? "Save changes" : "Post thread"}</button>

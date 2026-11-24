@@ -17,6 +17,8 @@ export type Thread = {
   /** Paths of attached photos in the thread-images bucket. */
   images: string[];
   edited_at: string | null;
+  /** Only the author and their friends can see it. */
+  friends_only: boolean;
 };
 
 /** A reply on a thread (a row of Supabase `report_comments`). */
@@ -32,7 +34,7 @@ export type Comment = {
   edited_at: string | null;
 };
 
-export const THREAD_COLUMNS = "id,user_id,author_username,author_name,airports,title,body,helpful,comment_count,flags,created_at,last_activity_at,images,edited_at";
+export const THREAD_COLUMNS = "id,user_id,author_username,author_name,airports,title,body,helpful,comment_count,flags,created_at,last_activity_at,images,edited_at,friends_only";
 export const COMMENT_COLUMNS = "id,report_id,user_id,author_username,author_name,body,created_at,images,edited_at";
 
 export const MAX_TAGS = 5;
@@ -116,14 +118,14 @@ export async function removeImages(db: SupabaseClient, paths: string[]) {
 }
 
 // ---- saving ----------------------------------------------------------------------------------------------
-export type ThreadValues = { title: string; body: string; airports: string[]; kept: string[]; files: File[] };
+export type ThreadValues = { title: string; body: string; airports: string[]; kept: string[]; files: File[]; friendsOnly: boolean };
 
 /** Create a thread, or save edits to one of yours (existing). Uploads new photos, removes dropped ones. */
 export async function saveThread(db: SupabaseClient, userId: string | null, existing: Thread | null, v: ThreadValues): Promise<{ thread?: Thread; error?: string }> {
   if (!userId) return { error: "You’re not signed in." };
   const up = await uploadImages(db, userId, v.files);
   if (up.error) return { error: up.error };
-  const row = { title: v.title, body: v.body, airports: v.airports, images: [...v.kept, ...up.paths] };
+  const row = { title: v.title, body: v.body, airports: v.airports, images: [...v.kept, ...up.paths], friends_only: v.friendsOnly };
   const res = existing
     ? await db.from("reports").update(row).eq("id", existing.id).select(THREAD_COLUMNS).single()
     : await db.from("reports").insert(row).select(THREAD_COLUMNS).single();
