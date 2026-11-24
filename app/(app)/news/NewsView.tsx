@@ -11,6 +11,7 @@ import { ThreadForm } from "@/components/ThreadForm";
 import { UserLink } from "@/components/UserLink";
 import { YouTag } from "@/components/YouTag";
 import { AIRPORTS } from "@/lib/core";
+import { MentionText } from "@/lib/mentions";
 import { useFriends } from "@/lib/friendsStore";
 import { useSupabase } from "@/lib/supabase";
 import {
@@ -60,7 +61,7 @@ function ThreadCard({ t, now, mine, friend, voted, flagged, onVote, onFlag, onEd
         <div className="post-tags"><Tags tags={t.airports} onPick={onPickAirport} /></div>
       </div>
       <h3><Link href={`/news/${t.id}`} className="thread-link">{t.title}</Link></h3>
-      {t.body && <p className="clamp3">{t.body}</p>}
+      {t.body && <p className="clamp3"><MentionText text={t.body} /></p>}
       <Photos images={t.images} />
       <div className="post-actions">
         <button className="pill" aria-pressed={voted} onClick={onVote}>▲ Helpful · {t.helpful}</button>

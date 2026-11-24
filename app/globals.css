@@ -197,7 +197,7 @@ h1, h2, h3, .stat .v, .bar b, .brand { font-family: var(--font-display), var(--f
   }
   .map-panel[data-open="false"] .list, .map-panel[data-open="false"] .search { display: none; }
   .map-panel[data-open="true"] { height: 78%; }
-  .sheet-handle { display: block; width: 100%; border: 0; background: transparent; padding: 0 0 8px; }
+  .sheet-handle { display: block; width: 100%; border: 0; background: transparent; padding: 6px 0 14px; margin-top: -6px; touch-action: none; cursor: grab; }
   .sheet-handle i { display: block; width: 44px; height: 5px; border-radius: 99px; background: var(--border); margin: 0 auto; }
   .map-panel .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .map-panel .tab { white-space: nowrap; }
@@ -732,5 +732,13 @@ a, button, .tab, .dock a { touch-action: manipulation; }
   .map-overlay.detail-card { left: 0; right: 0; bottom: 0; max-width: none; border-radius: 24px 24px 0 0; border-width: 1px 0 0; box-shadow: 0 -8px 30px rgba(0, 0, 0, .25); z-index: 8; }
   .detail-grab { display: block; width: 44px; height: 5px; border-radius: 99px; background: var(--border); margin: -4px auto 10px; }
   .map-layout:has(.detail-card) .map-panel { display: none; }
-  .map-layout:has(.detail-card) .map-legend { top: 12px; }
 }
+
+/* ---------- @mentions ---------- */
+.mention { font-weight: 700; color: var(--accent); text-decoration: none; }
+.mention:hover { text-decoration: underline; }
+.mention-box { position: relative; }
+.mention-list { position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 60; margin: 0; padding: 4px; list-style: none; max-height: 260px; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 10px 30px rgba(0, 0, 0, .25); }
+.mention-list button { width: 100%; display: flex; align-items: center; gap: 10px; border: 0; background: transparent; text-align: left; padding: 8px 10px; border-radius: 10px; min-height: 44px; }
+.mention-list button.on, .mention-list button:hover { background: var(--accent-soft); }
+.mention-note { padding: 10px 12px; font-size: 13.5px; color: var(--muted); }

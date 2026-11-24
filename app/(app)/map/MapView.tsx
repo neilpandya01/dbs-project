@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "@/components/Avatar";
 import { FlightMap } from "@/components/FlightMapLazy";
 import type { MapAirport, MapPlane, MapRoute } from "@/components/FlightMap";
@@ -160,6 +160,33 @@ export function MapView() {
   const [selected, setSelectedRaw] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [airport, setAirport] = useState<string | null>(null);
+  // the grab bar: drag it down to lower the sheet, up to raise it; a plain tap toggles
+  const panelRef = useRef<HTMLElement>(null);
+  const drag = useRef<{ y: number; moved: boolean } | null>(null);
+  const onGrabDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    drag.current = { y: e.clientY, moved: false };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onGrabMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = drag.current;
+    if (!d) return;
+    const dy = e.clientY - d.y;
+    if (Math.abs(dy) > 6) d.moved = true;
+    if (open && panelRef.current) { // the open sheet follows your finger downwards
+      panelRef.current.style.transition = "none";
+      panelRef.current.style.transform = `translateY(${Math.max(0, dy)}px)`;
+    }
+  };
+  const onGrabEnd = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = drag.current;
+    drag.current = null;
+    if (panelRef.current) { panelRef.current.style.transition = ""; panelRef.current.style.transform = ""; }
+    if (!d) return;
+    const dy = e.clientY - d.y;
+    if (!d.moved) setOpen((o) => !o);
+    else if (dy > 40) setOpen(false);
+    else if (dy < -40) setOpen(true);
+  };
   const setSelected = (id: string | null) => {
     setSelectedRaw(id);
     if (id) { setOpen(false); setAirport(null); } // phones: tuck the list away to show the flight
@@ -245,8 +272,8 @@ export function MapView() {
 
   return (
     <div className="map-layout">
-      <aside className="card map-panel" data-open={open} aria-label="Flights on the map">
-        <button className="sheet-handle" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={open ? "Collapse flight list" : "Expand flight list"}><i /></button>
+      <aside className="card map-panel" ref={panelRef} data-open={open} aria-label="Flights on the map">
+        <button className="sheet-handle" onPointerDown={onGrabDown} onPointerMove={onGrabMove} onPointerUp={onGrabEnd} onPointerCancel={onGrabEnd} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen((o) => !o); } }} aria-expanded={open} aria-label={open ? "Collapse flight list" : "Expand flight list"}><i /></button>
         <div className="tabs" role="group" aria-label="Filter">
           {(["all", "mine", "friends"] as Mode[]).map((m) => (
             <button key={m} className="tab" aria-pressed={mode === m} onClick={() => { setMode(m); setOpen(true); }}>

@@ -7,12 +7,14 @@ import { Avatar } from "@/components/Avatar";
 import { CommentItem } from "@/components/CommentItem";
 import { ConfirmDelete } from "@/components/ConfirmDelete";
 import { ImageAttach } from "@/components/ImageAttach";
+import { MentionTextarea, type Suggestion } from "@/components/MentionTextarea";
 import { Photos } from "@/components/Photos";
 import { ThreadForm } from "@/components/ThreadForm";
 import { UserLink } from "@/components/UserLink";
 import { YouTag } from "@/components/YouTag";
 import { AIRPORTS } from "@/lib/core";
 import { useFriends } from "@/lib/friendsStore";
+import { MentionText } from "@/lib/mentions";
 import { useSupabase } from "@/lib/supabase";
 import {
   COMMENT_COLUMNS, COMMENT_MAX, MAX_COMMENT_IMAGES, THREAD_COLUMNS, addComment, ago, colorFor, deleteComment, deleteThread, editComment,
@@ -39,6 +41,8 @@ export function ThreadView({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  // friends-only thread you didn't write: only its author and friends you share with them can be mentioned (asked of the database)
+  const [sharedPeople, setSharedPeople] = useState<Suggestion[] | null>(null);
 
   useEffect(() => {
     if (!me.id) return;
@@ -61,6 +65,16 @@ export function ThreadView({ id }: { id: string }) {
     return () => { alive = false; };
   }, [id, me.id, supabase]);
 
+  const needsServerList = !!thread && thread.friends_only && thread.user_id !== me.id;
+  useEffect(() => {
+    if (!needsServerList) { setSharedPeople(null); return; }
+    let alive = true;
+    supabase.rpc("thread_mention_candidates", { p_thread: id }).then(({ data }) => {
+      if (alive) setSharedPeople(((data ?? []) as { username: string; display_name: string }[]).map((r) => ({ username: r.username, name: r.display_name || r.username })));
+    });
+    return () => { alive = false; };
+  }, [needsServerList, id, supabase]);
+
   if (thread === undefined) return <div className="loading-block" role="status">Loading thread…</div>;
   if (thread === null) {
     return (
@@ -72,6 +86,7 @@ export function ThreadView({ id }: { id: string }) {
   }
 
   const mine = thread.user_id === me.id;
+  const mentionPeople: Suggestion[] | null = !thread.friends_only ? null : mine ? friends.map((f) => ({ username: f.username, name: f.name })) : (sharedPeople ?? []);
   const friend = friends.some((f) => f.id === thread.user_id);
 
   const vote = async () => {
@@ -145,7 +160,7 @@ export function ThreadView({ id }: { id: string }) {
             {thread.airports.map((c) => <span key={c} className="tag mono" title={AIRPORTS[c]?.name}>{c}</span>)}
           </div>
           <h1 className="thread-title">{thread.title}</h1>
-          {thread.body && <p className="thread-body">{thread.body}</p>}
+          {thread.body && <p className="thread-body"><MentionText text={thread.body} /></p>}
           <Photos images={thread.images} size="large" />
           <div className="post-actions">
             <button className="pill" aria-pressed={voted} onClick={vote}>▲ Helpful · {thread.helpful}</button>
@@ -167,7 +182,7 @@ export function ThreadView({ id }: { id: string }) {
       <h2 className="sec">{thread.comment_count === 1 ? "1 comment" : `${thread.comment_count} comments`}</h2>
 
       <form className="comment-form" onSubmit={reply}>
-        <textarea className="input" rows={3} value={text} onChange={(e) => setText(e.target.value)} maxLength={COMMENT_MAX} placeholder="Add a comment…" aria-label="Add a comment" />
+        <MentionTextarea rows={3} value={text} onChange={setText} maxLength={COMMENT_MAX} placeholder={thread.friends_only ? "Add a comment… (@ mentions the author or friends you share)" : "Add a comment… (type @ to mention someone)"} ariaLabel="Add a comment" people={mentionPeople} />
         <ImageAttach kept={[]} onKeptChange={() => {}} files={files} onFilesChange={setFiles} max={MAX_COMMENT_IMAGES} />
         <div className="comment-form-row">
           <small className="muted">{text.length}/{COMMENT_MAX}</small>
@@ -184,6 +199,7 @@ export function ThreadView({ id }: { id: string }) {
             c={c}
             now={now}
             mine={c.user_id === me.id}
+            mentionPeople={mentionPeople}
             onSave={(body, kept) => saveComment(c, body, kept)}
             onDelete={() => delComment(c)}
           />

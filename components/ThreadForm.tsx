@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { AirportTags } from "./AirportTags";
 import { ImageAttach } from "./ImageAttach";
+import { MentionTextarea } from "./MentionTextarea";
 import { Sheet } from "./Sheet";
+import { useFriends } from "@/lib/friendsStore";
 import { BODY_MAX, BODY_MIN, MAX_THREAD_IMAGES, TITLE_MAX, type Thread, type ThreadValues } from "@/lib/threads";
 
 /** Start a thread, or edit one of yours (pass `thread`). Title and a description are required. */
@@ -14,6 +16,7 @@ export function ThreadForm({ thread, onClose, onSave }: { thread: Thread | null;
   const [kept, setKept] = useState<string[]>(thread?.images ?? []);
   const [files, setFiles] = useState<File[]>([]);
   const [friendsOnly, setFriendsOnly] = useState(thread?.friends_only ?? false);
+  const { friends } = useFriends();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -36,13 +39,13 @@ export function ThreadForm({ thread, onClose, onSave }: { thread: Thread | null;
         </label>
         <label>
           <span>Description <small>{body.length}/{BODY_MAX}</small></span>
-          <textarea className="input" rows={5} value={body} onChange={(e) => setBody(e.target.value)} maxLength={BODY_MAX} required aria-required="true" placeholder="What’s happening? Where, and when?" />
+          <MentionTextarea rows={5} value={body} onChange={setBody} maxLength={BODY_MAX} required ariaLabel="Description" placeholder="What’s happening? Where, and when? Type @ to mention someone." people={friendsOnly ? friends.map((f) => ({ username: f.username, name: f.name })) : null} />
         </label>
         <ImageAttach kept={kept} onKeptChange={setKept} files={files} onFilesChange={setFiles} max={MAX_THREAD_IMAGES} />
         <AirportTags value={airports} onChange={setAirports} />
         <label className="check-row">
           <input type="checkbox" checked={friendsOnly} onChange={(e) => setFriendsOnly(e.target.checked)} />
-          <span>Friends only <small className="muted">· only you and your friends can see this thread</small></span>
+          <span>Friends only <small className="muted">· only you and your friends can see this thread, so only your friends can be @mentioned</small></span>
         </label>
         {error && <p className="msg err" role="alert">{error}</p>}
         <div className="form-actions">
