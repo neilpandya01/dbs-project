@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Avatar } from "@/components/Avatar";
 import { FlightMap } from "@/components/FlightMapLazy";
 import type { MapAirport, MapPlane, MapRoute } from "@/components/FlightMap";
@@ -14,6 +14,7 @@ import { useProfile } from "@/lib/profileStore";
 import { liveFlight } from "@/lib/live";
 import { useLivePositions, type LivePos } from "@/lib/livePositions";
 import { bearing, distanceMiles } from "@/lib/geo";
+import { useSheetDrag } from "@/lib/useSheetDrag";
 import { livePhase, phaseLabel, routeProgress, type Phase } from "@/lib/liveDisplay";
 
 type Mode = "all" | "mine" | "friends";
@@ -170,47 +171,7 @@ export function MapView() {
   const [selected, setSelectedRaw] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [airport, setAirport] = useState<string | null>(null);
-  // the grab bar: drag it down to lower the sheet, up to raise it; a plain tap toggles
-  const panelRef = useRef<HTMLElement>(null);
-  const drag = useRef<{ y: number; t: number; h: number; started: boolean; wasOpen: boolean } | null>(null);
-  const CLOSED_H = 112;
-  const DEAD_ZONE = 24; // px: a small drag does nothing at all (the sheet doesn't budge)
-  const onGrabDown = (e: React.PointerEvent<HTMLButtonElement>) => {
-    drag.current = { y: e.clientY, t: performance.now(), h: panelRef.current?.offsetHeight ?? CLOSED_H, started: false, wasOpen: open };
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-  const onGrabMove = (e: React.PointerEvent<HTMLButtonElement>) => {
-    const d = drag.current, el = panelRef.current;
-    if (!d || !el) return;
-    const dy = e.clientY - d.y;
-    // only the direction that can change something counts: down when open, up when closed
-    const along = d.wasOpen ? dy : -dy;
-    if (!d.started) {
-      if (along < DEAD_ZONE) return;
-      d.started = true;
-    }
-    // past the dead zone the sheet follows your finger (measured from where the zone ended, so it doesn't jump)
-    const full = (el.parentElement?.clientHeight ?? 600) * 0.78;
-    const travelled = Math.max(0, along - DEAD_ZONE);
-    const target = d.wasOpen ? d.h - travelled : d.h + travelled;
-    el.dataset.dragging = "true";
-    el.style.transition = "none";
-    el.style.height = `${Math.min(full, Math.max(CLOSED_H, target))}px`;
-  };
-  const onGrabEnd = (e: React.PointerEvent<HTMLButtonElement>) => {
-    const d = drag.current, el = panelRef.current;
-    drag.current = null;
-    if (!d) return;
-    if (el) { delete el.dataset.dragging; el.style.transition = ""; el.style.height = ""; }
-    const dy = e.clientY - d.y;
-    if (Math.abs(dy) < 10) { setOpen((o) => !o); return; } // a tap
-    if (!d.started) return; // a small drag: nothing changes
-    const along = d.wasOpen ? dy : -dy;
-    const range = ((el?.parentElement?.clientHeight ?? 600) * 0.78 - CLOSED_H);
-    const speed = along / Math.max(1, performance.now() - d.t); // px per ms: a quick flick counts even if short
-    // a significant drag (a third of the way, or a quick flick) flips it; otherwise it springs back
-    if (along > Math.max(70, range * 0.33) || (speed > 0.5 && along > 40)) setOpen(!d.wasOpen);
-  };
+  const { panelRef, grab } = useSheetDrag(open, setOpen);
   const setSelected = (id: string | null) => {
     setSelectedRaw(id);
     if (id) { setOpen(false); setAirport(null); } // phones: tuck the list away to show the flight
@@ -306,7 +267,7 @@ export function MapView() {
   return (
     <div className="map-layout">
       <aside className="card map-panel" ref={panelRef} data-open={open} aria-label="Flights on the map">
-        <button className="sheet-handle" onPointerDown={onGrabDown} onPointerMove={onGrabMove} onPointerUp={onGrabEnd} onPointerCancel={onGrabEnd} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen((o) => !o); } }} aria-expanded={open} aria-label={open ? "Collapse flight list" : "Expand flight list"}><i /></button>
+        <button className="sheet-handle" {...grab} aria-expanded={open} aria-label={open ? "Collapse flight list" : "Expand flight list"}><i /></button>
         <div className="tabs" role="group" aria-label="Filter">
           {(["all", "mine", "friends"] as Mode[]).map((m) => (
             <button key={m} className="tab" aria-pressed={mode === m} onClick={() => { setMode(m); setOpen(true); }}>

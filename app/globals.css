@@ -898,3 +898,6 @@ img { max-width: 100%; }
   .map-box .maplibregl-ctrl-attrib.maplibregl-compact-show, .map-box .maplibregl-ctrl-attrib[open] { max-width: calc(100vw - 24px); }
   .map-warn { top: 100px; }
 }
+
+.friend-map-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 28px; }
+.friend-map-head .muted { font-size: 13.5px; }

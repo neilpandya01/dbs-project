@@ -161,7 +161,7 @@ export function ProfileLayout({ who, subtitle, friendCount, friendAvatars, fligh
         <>
           <div className="section-bar">
             <h2 className="sec">{own ? "Where you’ve flown" : "Where they’ve flown"}</h2>
-            <Link href="/map" className="see-all">Explore more ›</Link>
+            <Link href={own ? "/map" : `/friends/${encodeURIComponent(who.username)}/map`} className="see-all">Explore more ›</Link>
           </div>
           <div className="card map-card map-wide">
             <FlightMap
