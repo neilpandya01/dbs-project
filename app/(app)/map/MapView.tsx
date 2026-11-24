@@ -296,7 +296,7 @@ export function MapView() {
         )}
         <FlightMap routes={routes} planes={planes} selectedPlane={selected} onSelectPlane={setSelected} airports={airports} onSelectAirport={pickAirport} focus={focus} />
         <ul className="map-legend" aria-label="Map legend">
-          <li><i style={{ background: AIRPORT_COLORS.me }} />Only you</li>
+          <li><i style={{ background: AIRPORT_COLORS.me }} /><i className="line" style={{ background: MINE_COLOR }} />Only you</li>
           <li><i style={{ background: AIRPORT_COLORS.friend }} />Only friends</li>
           <li><i style={{ background: AIRPORT_COLORS.both }} />You &amp; friends</li>
           <li><i className="line" style={{ background: AIRPORT_COLORS.both }} />Shared route</li>

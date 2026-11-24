@@ -128,7 +128,7 @@ export function FlightForm({
     setSource("lookup");
     setExact(f.depAt && f.arrAt && f.depTz && f.arrTz ? { depAt: f.depAt, arrAt: f.arrAt, depTz: f.depTz, arrTz: f.arrTz } : null);
     setDate(f.depAt && f.depTz ? new Date(f.depAt).toLocaleDateString("en-CA", { timeZone: f.depTz }) : date);
-    setHint(missing.length ? `Filled in from the lookup, but we don’t have ${missing.join(" and ")} in our airport list. Choose ${missing.length > 1 ? "them" : "it"} below.` : "Filled in from the flight lookup. Check it looks right, then add your seat or notes.");
+    setHint(missing.length ? `We found your flight, but we don’t have ${missing.join(" and ")} in our airport list. Choose ${missing.length > 1 ? "them" : "it"} below.` : "We were able to find your flight. Check it looks right, then add your seat or notes.");
     setError(null);
     setStep("form");
   };
