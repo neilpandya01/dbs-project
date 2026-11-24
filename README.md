@@ -128,6 +128,16 @@ The weight sits on three areas:
 - **Keys and safety:** secret keys stay on the server and out of the code repository. An automated security test
   creates temporary users and tries to read, change and impersonate each other's data, then cleans up after itself.
 
+
+**Security review.** We reviewed the whole project: the API routes, sign-in handling, every database table's access rules,
+the background worker, secrets, and dependencies. No secrets were ever committed, dependencies had no known
+vulnerabilities, and no one's data was exposed to people who shouldn't see it. We found and fixed three weaknesses:
+post authors could be spoofed by renaming yourself in the sign-in service (names now come from the locked profile),
+the live-position refresh had no per-user limit (now one call per 15 seconds), and the daily flight-lookup limit could be
+bypassed with many simultaneous requests (the allowance is now claimed atomically). Still open, lower priority: a
+Content-Security-Policy, validating profile photo URLs, limiting username search, and turning off username changes in
+the sign-in service's settings. The automated security test covers the new limits.
+
 ---
 
 ## v2 plan: what got done and what didn't
