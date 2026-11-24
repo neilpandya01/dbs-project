@@ -64,7 +64,7 @@ export function useLivePositions(watching: boolean) {
           const r = (await res.json()) as { provider?: "ok" | "down" | "unknown" };
           console.debug("live tracking:", r);
           if (alive && r.provider && r.provider !== "unknown") setDown(r.provider === "down");
-        } else if (alive) setDown(true); // our own server failed: live positions can't load either
+        } else if (res.status !== 429 && alive) setDown(true); // 429 = refreshed a moment ago, nothing wrong. Otherwise our own server failed: live positions can't load either
       } catch { if (alive) setDown(true); }
       if (alive) await load();
     };

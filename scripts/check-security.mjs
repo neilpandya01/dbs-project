@@ -437,6 +437,21 @@ try {
   ]);
   check(anonFns.every((r) => !!r.error || r.data == null || (Array.isArray(r.data) && r.data.length === 0)), "signed-out visitors get nothing from the friend functions", "a friend function returned data to a signed-out visitor");
 
+  console.log("\nRate-limit functions are server-only, and post authors come from the profile");
+  const limitFns = await Promise.all([
+    A.db.rpc("claim_flight_lookup", { p_user: A.id, p_limit: 1000 }),
+    A.db.rpc("live_claim_refresh", { p_user: A.id, p_seconds: 1 }),
+  ]);
+  check(limitFns.every((r) => !!r.error), "signed-in users can't call the lookup / refresh limit functions", "a rate-limit function was callable by a signed-in user");
+  // the claim function allows exactly p_limit claims, even when asked all at once
+  const burst = await Promise.all(Array.from({ length: 6 }, () => admin.rpc("claim_flight_lookup", { p_user: `limit-test-${tag}`, p_limit: 3 })));
+  check(burst.filter((r) => r.data === true).length === 3, "6 simultaneous lookups against a limit of 3: exactly 3 allowed", `${burst.filter((r) => r.data === true).length} allowed`);
+  await admin.from("flight_lookup_log").delete().eq("user_id", `limit-test-${tag}`);
+  const cool1 = await admin.rpc("live_claim_refresh", { p_user: `limit-test-${tag}`, p_seconds: 60 });
+  const cool2 = await admin.rpc("live_claim_refresh", { p_user: `limit-test-${tag}`, p_seconds: 60 });
+  check(cool1.data === true && cool2.data === false, "a second refresh within the cooldown is refused", `got ${cool1.data} then ${cool2.data}`);
+  await admin.from("live_refresh_cooldown").delete().eq("user_id", `limit-test-${tag}`);
+
   console.log("\nNews feed and airports are read-only");
   const seedNews = await admin.from("news_items").insert({ kind: "headline", title: `Test ${tag}`, source: "test" }).select().single();
   const readNews = await A.db.from("news_items").select("id").eq("id", seedNews.data?.id);

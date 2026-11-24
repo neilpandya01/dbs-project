@@ -13,6 +13,9 @@ import { callsignCandidates, flightWindow, inWindow, parseSightings, pickSightin
 const ADSB = "https://opendata.adsb.fi/api/v2";
 const MAX_FLIGHTS = 8;
 const RECENT_MS = 10_000; // don't ask again about a flight asked about this recently
+const PER_USER_COOLDOWN_S = 15; // one refresh per person per this many seconds (stops looping clients hammering adsb.fi)
+
+export const maxDuration = 60; // up to 8 flights x 3 requests x ~1.1 s each
 
 type Note = { flight: string; result: string };
 
@@ -20,6 +23,10 @@ export async function POST() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Sign in first" }, { status: 401 });
   const db = supabaseAdmin();
+
+  const { data: claimed, error: claimError } = await db.rpc("live_claim_refresh", { p_user: userId, p_seconds: PER_USER_COOLDOWN_S });
+  if (claimError) return NextResponse.json({ error: "Refresh unavailable" }, { status: 503 });
+  if (!claimed) return NextResponse.json({ checked: 0, provider: "unknown", notes: [], throttled: true }, { status: 429, headers: { "Retry-After": String(PER_USER_COOLDOWN_S) } });
   const now = Date.now();
 
   const { data: ships } = await db.from("friendships").select("requester,addressee").eq("status", "accepted").or(`requester.eq.${userId},addressee.eq.${userId}`);

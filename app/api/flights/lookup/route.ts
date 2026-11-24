@@ -31,11 +31,12 @@ type Reason = NonNullable<LookupStatus["reason"]>;
 const json = (body: LookupResult | LookupStatus | { error: string }, status = 200) => NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
 
 /** Why lookups are off for this person right now, or null if they're on. Never calls the API. */
-async function blockedReason(userId: string): Promise<Reason | null> {
+async function blockedReason(userId: string, checkUser = true): Promise<Reason | null> {
   if (!process.env.RAPIDAPI_KEY) return "not_configured";
   const db = supabaseAdmin();
   const { data: q } = await db.from("api_quota").select("units_limit,units_remaining").eq("provider", PROVIDER).maybeSingle();
   if (q && q.units_limit > 0 && q.units_remaining <= Math.ceil(q.units_limit * (1 - STOP_AT_USED))) return "quota";
+  if (!checkUser) return null;
   const since = new Date(Date.now() - 24 * 3600_000).toISOString();
   const { count } = await db.from("flight_lookup_log").select("id", { count: "exact", head: true }).eq("user_id", userId).gte("created_at", since);
   if ((count ?? 0) >= PER_USER_PER_DAY) return "user_limit";
@@ -146,9 +147,13 @@ export async function POST(req: Request) {
     const { data: hit } = await db.from("flight_lookup_cache").select("found,payload").eq("cache_key", key).gt("expires_at", new Date().toISOString()).maybeSingle();
     if (hit) return json(hit.found ? { status: "ok", flights: hit.payload as LookupFlight[] } : { status: "none" });
 
-    // 2. allowance and per-person limit
-    const blocked = await blockedReason(userId);
+    // 2. shared allowance, then the person's daily limit. The limit is claimed atomically BEFORE the call (and
+    //    counts even if the call fails), so simultaneous requests can't all slip under it.
+    const blocked = await blockedReason(userId, false);
     if (blocked) return json({ status: "unavailable", reason: blocked });
+    const { data: claimed, error: claimError } = await db.rpc("claim_flight_lookup", { p_user: userId, p_limit: PER_USER_PER_DAY });
+    if (claimError) return json({ status: "error", message: "The flight lookup isn't working right now." });
+    if (!claimed) return json({ status: "unavailable", reason: "user_limit" });
 
     // 3. the real call (fixed host; number and date are validated above)
     const url = `https://${HOST}/flights/number/${number}/${date}?dateLocalRole=Departure`;
@@ -173,9 +178,6 @@ export async function POST(req: Request) {
     if (res.status === 429) return json({ status: "unavailable", reason: "quota" });
     const empty = res.status === 204 || res.status === 404;
     if (!res.ok && !empty) return json({ status: "error", message: "The flight lookup isn't working right now." });
-
-    // the API answered, so this counts toward the person's daily allowance
-    await db.from("flight_lookup_log").insert({ user_id: userId });
 
     const flights = empty ? [] : normalize(await res.json().catch(() => []));
     const isPast = date < new Date().toISOString().slice(0, 10);
