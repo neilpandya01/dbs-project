@@ -16,7 +16,7 @@ import { useProfile } from "@/lib/profileStore";
 import { useSupabase } from "@/lib/supabase";
 import {
   COMMENT_COLUMNS, THREAD_COLUMNS, activity, ago, colorFor, deleteComment, deleteThread, editComment, flagThread, hotScore, hotspots,
-  saveThread, trending, voteThread, type Comment, type Thread, type ThreadValues,
+  saveThread, voteThread, type Comment, type Thread, type ThreadValues,
 } from "@/lib/threads";
 import { useMe } from "@/lib/useMe";
 
@@ -143,7 +143,6 @@ export function NewsView() {
 
   // summaries built from volume: which airports are busy right now, and which threads people are reacting to
   const spots = useMemo(() => hotspots(threads, now), [threads, now]);
-  const hot = useMemo(() => trending(threads, now), [threads, now]);
 
   const counts = useMemo(() => ({
     friends: threads.filter((t) => friendIds.has(t.user_id)).length,
@@ -235,23 +234,6 @@ export function NewsView() {
                 </div>
                 <p>Latest buzz: “{s.top.title}”</p>
               </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {scope === "all" && hot.length > 0 && airports.length === 0 && (
-        <section aria-label="Trending threads">
-          <h2 className="sec">Trending</h2>
-          <div className="trending">
-            {hot.map((t, i) => (
-              <Link key={t.id} href={`/news/${t.id}`} className="trend-row">
-                <span className="trend-n">{i + 1}</span>
-                <span className="trend-main">
-                  <b>{t.title}</b>
-                  <span className="muted">▲ {t.helpful} · 💬 {t.comment_count}{t.airports.length > 0 ? ` · ${t.airports.join(", ")}` : ""}</span>
-                </span>
-              </Link>
             ))}
           </div>
         </section>

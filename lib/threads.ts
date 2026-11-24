@@ -96,15 +96,6 @@ export function hotspots(threads: Thread[], now: number, windowHours = 24): Hots
   return out.sort((a, b) => b.score - a.score).slice(0, 4);
 }
 
-/** The threads people are reacting to most in the last 2 days (needs at least some reaction). */
-export function trending(threads: Thread[], now: number, n = 3): Thread[] {
-  const since = now - 48 * HOUR;
-  return threads
-    .filter((t) => Date.parse(t.created_at) >= since && activity(t) >= 1)
-    .sort((a, b) => hotScore(b, now) - hotScore(a, now))
-    .slice(0, n);
-}
-
 // ---- photos ---------------------------------------------------------------------------------------------
 const IMAGE_PATH = /^[A-Za-z0-9_-]+\/[0-9a-f-]{36}\.jpg$/;
 

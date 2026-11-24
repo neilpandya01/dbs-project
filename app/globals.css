@@ -611,14 +611,6 @@ button.tag-btn:hover { filter: brightness(.95); }
 .hotspot-stats { font-size: 13px; color: var(--muted); margin: 2px 0 6px; }
 .hotspot p { margin: 0; font-size: 14px; line-height: 1.35; }
 
-.trending { display: grid; gap: 6px; }
-.trend-row { display: flex; gap: 12px; align-items: center; padding: 10px 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); text-decoration: none; color: inherit; }
-.trend-row:hover { border-color: var(--accent); }
-.trend-n { font-weight: 800; font-size: 18px; color: var(--accent); width: 22px; text-align: center; }
-.trend-main { display: grid; gap: 2px; min-width: 0; }
-.trend-main b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.trend-main .muted { font-size: 12.5px; }
-
 .thread-full { margin-top: 4px; }
 .thread-title { font-size: 22px; margin: 8px 0 6px; line-height: 1.25; font-family: var(--font-body), sans-serif; font-weight: 700; }
 .thread-body { white-space: pre-wrap; color: var(--text); font-size: 16px; line-height: 1.5; margin: 0; }
